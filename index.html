@@ -35,6 +35,12 @@
     header h1 span { color: var(--accent); }
     header .status { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
     header .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
+    header .settings-btn {
+      background: none; border: none; color: var(--text-dim); cursor: pointer;
+      padding: 4px; border-radius: 6px; display: flex; align-items: center;
+      transition: color 0.2s; font-size: 18px;
+    }
+    header .settings-btn:hover { color: var(--text); }
     .container { display: flex; flex: 1; overflow: hidden; }
     .panel-chat {
       width: 420px; min-width: 320px; display: flex; flex-direction: column;
@@ -93,6 +99,43 @@
       transition: max-width 0.3s ease;
     }
     iframe#preview.mobile { max-width: 375px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px; max-width: 460px; width: 90%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    .modal h2 { font-size: 20px; margin-bottom: 8px; }
+    .modal p { font-size: 14px; color: var(--text-dim); line-height: 1.5; margin-bottom: 20px; }
+    .modal a { color: var(--accent); }
+    .modal input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px; color: var(--text);
+      font-family: monospace; font-size: 14px; outline: none; transition: border-color 0.2s;
+      margin-bottom: 12px;
+    }
+    .modal input:focus { border-color: var(--accent); }
+    .modal .key-error { font-size: 13px; color: var(--error); min-height: 20px; margin-bottom: 12px; }
+    .modal .key-success { font-size: 13px; color: var(--success); min-height: 20px; margin-bottom: 12px; }
+    .modal .btn-primary {
+      width: 100%; background: var(--accent); color: #fff; border: none;
+      border-radius: var(--radius); padding: 12px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s, box-shadow 0.2s;
+    }
+    .modal .btn-primary:hover { background: #6a4ae8; box-shadow: 0 0 20px var(--accent-glow); }
+    .modal .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .modal .btn-ghost {
+      width: 100%; background: none; border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: var(--radius); padding: 12px; font-size: 14px;
+      cursor: pointer; margin-top: 8px; transition: border-color 0.2s, color 0.2s;
+    }
+    .modal .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+    .modal .key-hint { font-size: 12px; color: var(--text-dim); margin-top: 16px; text-align: center; }
     @media (max-width: 768px) {
       .container { flex-direction: column; }
       .panel-chat { width: 100%; min-width: 0; max-height: 50vh; border-right: none; border-bottom: 1px solid var(--border); }
@@ -104,8 +147,9 @@
   <header>
     <h1>webhooks.<span>email</span></h1>
     <div class="status">
-      <span class="dot"></span> Gemma-4 Ready
+      <span class="dot" id="statusDot"></span> <span id="statusText">Ready</span>
     </div>
+    <button class="settings-btn" id="settingsBtn" title="Settings">&#9881;</button>
   </header>
 
   <div class="container">
@@ -133,6 +177,17 @@
     </div>
   </div>
 
+  <div class="modal-overlay hidden" id="keyModal">
+    <div class="modal">
+      <h2>Welcome to webhooks.email</h2>
+      <p>Enter your <strong>OpenRouter API key</strong> to start generating UIs. Get a free key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a> — the free tier includes Gemma 4.</p>
+      <input type="password" id="keyInput" placeholder="sk-or-v1-..." spellcheck="false" autocomplete="off" />
+      <div id="keyFeedback"></div>
+      <button class="btn-primary" id="keyValidateBtn">Validate &amp; Save</button>
+      <button class="btn-ghost" id="keySkipBtn">Skip for now</button>
+      <div class="key-hint">Your key stays on this device. Never shared.</div>
+    </div>
+  </div>
   <script src="client.js"></script>
 </body>
 </html>

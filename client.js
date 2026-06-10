@@ -93,6 +93,66 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   let desktopURL = '';
   let repairCount = 0;
   const MAX_REPAIRS = 3;
+  const STORAGE_KEY = 'webhooks_email_api_key';
+
+  function loadApiKey() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      CONFIG.apiKey = stored;
+      return true;
+    }
+    return false;
+  }
+
+  function saveApiKey(key) {
+    CONFIG.apiKey = key;
+    localStorage.setItem(STORAGE_KEY, key);
+    updateStatus('connected');
+  }
+
+  function clearApiKey() {
+    CONFIG.apiKey = '';
+    localStorage.removeItem(STORAGE_KEY);
+    updateStatus('disconnected');
+  }
+
+  async function validateApiKey(key) {
+    const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+      headers: { 'Authorization': 'Bearer ' + key },
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Invalid API key');
+      throw new Error('Validation failed: ' + res.status);
+    }
+    const data = await res.json();
+    return data;
+  }
+
+  function updateStatus(state) {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (!dot || !text) return;
+    if (state === 'connected') {
+      dot.style.background = 'var(--success)';
+      text.textContent = 'Gemma-4 Ready';
+    } else if (state === 'disconnected') {
+      dot.style.background = 'var(--error)';
+      text.textContent = 'No API Key';
+    } else if (state === 'validating') {
+      dot.style.background = '#fbbf24';
+      text.textContent = 'Validating...';
+    }
+  }
+
+  function showKeyModal() {
+    const modal = document.getElementById('keyModal');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function hideKeyModal() {
+    const modal = document.getElementById('keyModal');
+    if (modal) modal.classList.add('hidden');
+  }
 
   function setApiKey(key) {
     CONFIG.apiKey = key;
@@ -463,10 +523,10 @@ window.addEventListener('unhandledrejection', function(e) {
   });
 
   document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('sendDesktopBtn');
-    if (btn) {
-      btn.addEventListener('click', sendToDesktop);
-      btn.style.display = 'none';
+    const desktopBtn = document.getElementById('sendDesktopBtn');
+    if (desktopBtn) {
+      desktopBtn.addEventListener('click', sendToDesktop);
+      desktopBtn.style.display = 'none';
     }
     const whBtn = document.getElementById('webhookerBtn');
     if (whBtn) {
@@ -480,6 +540,61 @@ window.addEventListener('unhandledrejection', function(e) {
         }
       });
     }
+
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', showKeyModal);
+    }
+
+    const keyInput = document.getElementById('keyInput');
+    const validateBtn = document.getElementById('keyValidateBtn');
+    const skipBtn = document.getElementById('keySkipBtn');
+    const feedback = document.getElementById('keyFeedback');
+
+    if (validateBtn && keyInput) {
+      validateBtn.addEventListener('click', async () => {
+        const key = keyInput.value.trim();
+        if (!key) {
+          feedback.className = 'key-error';
+          feedback.textContent = 'Enter your OpenRouter API key.';
+          return;
+        }
+        validateBtn.disabled = true;
+        validateBtn.textContent = 'Validating...';
+        feedback.className = '';
+        feedback.textContent = '';
+        try {
+          const info = await validateApiKey(key);
+          saveApiKey(key);
+          feedback.className = 'key-success';
+          feedback.textContent = 'Key validated! Connected as ' + (info.label || info.name || 'OpenRouter') + '.';
+          setTimeout(hideKeyModal, 1200);
+        } catch (err) {
+          feedback.className = 'key-error';
+          feedback.textContent = err.message + '. Check your key at openrouter.ai/keys.';
+        } finally {
+          validateBtn.disabled = false;
+          validateBtn.textContent = 'Validate & Save';
+        }
+      });
+    }
+
+    if (skipBtn) {
+      skipBtn.addEventListener('click', () => {
+        hideKeyModal();
+        updateStatus('disconnected');
+      });
+    }
+
+    keyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') validateBtn.click();
+    });
+
+    if (!loadApiKey()) {
+      showKeyModal();
+    } else {
+      updateStatus('connected');
+    }
   });
 
   window.WebhooksEmail = {
@@ -492,6 +607,12 @@ window.addEventListener('unhandledrejection', function(e) {
     createWebhookEndpoint,
     connectStream,
     disconnectStream,
+    validateApiKey,
+    loadApiKey,
+    saveApiKey,
+    clearApiKey,
+    showKeyModal,
+    hideKeyModal,
     getLastResult: () => lastResult,
     getSkills: () => Object.keys(SKILLS),
   };
