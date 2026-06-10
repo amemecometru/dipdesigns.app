@@ -317,11 +317,14 @@ window.addEventListener('unhandledrejection', function(e) {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.parsed) {
+        if (data.type === 'INBOUND_WEBHOOK_PROMPT') {
+          addMessage('External webhook triggered: "' + data.prompt.slice(0, 80) + '"', 'assistant');
+          sendPrompt(data.prompt);
+        } else if (data.parsed) {
           lastResult = data.parsed;
           lastPrompt = data.prompt || lastPrompt;
           renderPreview(data.parsed);
-          addMessage('Live update received' + (data.prompt ? ': "' + data.prompt.slice(0, 60) + '"' : ''), 'assistant');
+          addMessage('Live state synced across devices.', 'assistant');
           const sendBtn = document.getElementById('sendDesktopBtn');
           if (sendBtn) sendBtn.style.display = desktopURL ? 'inline-flex' : 'none';
         }

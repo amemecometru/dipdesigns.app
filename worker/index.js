@@ -105,68 +105,36 @@ async function handleWebhook(request, cors, env) {
   try {
     const payload = await request.json();
     const prompt = payload.body || payload.text || payload.prompt || '';
+    const sessionId = payload.session || 'default';
+
     if (!prompt) {
-      return new Response(JSON.stringify({ error: 'No prompt found in webhook body' }), {
+      return new Response(JSON.stringify({ error: 'No prompt found in webhook payload' }), {
         status: 400, headers: { 'Content-Type': 'application/json', ...cors },
       });
     }
 
-    const orBody = {
-      model: CONFIG.MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
-      extra_body: { reasoning: { enabled: true } },
+    const webhookEvent = {
+      type: 'INBOUND_WEBHOOK_PROMPT',
+      prompt: prompt,
+      timestamp: Date.now(),
+      session: sessionId,
     };
 
-    const resp = await fetch(CONFIG.OPENROUTER_BASE + '/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + CONFIG.OPENROUTER_API_KEY,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://webhooks.email',
-        'X-Title': 'webhooks.email',
-      },
-      body: JSON.stringify(orBody),
-    });
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      return new Response(JSON.stringify({ error: 'OpenRouter: ' + err }), {
-        status: 502, headers: { 'Content-Type': 'application/json', ...cors },
-      });
-    }
-
-    const data = await resp.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    const parsed = parseGemmaResponse(content);
-    const fullHtml = buildHtml(parsed);
-
-    const sessionId = payload.session || 'default';
-    const vfsState = { html: fullHtml, parsed, timestamp: Date.now(), prompt };
-
-    // Persist to KV
-    if (env.WEBHOOKS_KV) {
-      await env.WEBHOOKS_KV.put('state:' + sessionId, JSON.stringify(vfsState));
-    }
-
-    // Broadcast via Durable Object
     if (env.SESSION_HUB) {
       const doId = env.SESSION_HUB.idFromName(sessionId);
       const stub = env.SESSION_HUB.get(doId);
       try {
         await stub.fetch('https://do/broadcast', {
           method: 'POST',
-          body: JSON.stringify(vfsState),
+          body: JSON.stringify(webhookEvent),
         });
       } catch (e) {
         console.error('DO broadcast failed:', e.message);
       }
     }
 
-    return new Response(JSON.stringify({ html: fullHtml, ...parsed, _session: sessionId }), {
-      headers: { 'Content-Type': 'application/json', ...cors },
+    return new Response(JSON.stringify({ success: true, status: 'Prompt forwarded to active client' }), {
+      status: 202, headers: { 'Content-Type': 'application/json', ...cors },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
@@ -294,7 +262,7 @@ export class SessionHub {
   async fetch(request) {
     const url = new URL(request.url);
 
-    if (url.pathname === '/stream') {
+    if (url.pathname.endsWith('/stream')) {
       const { readable, writable } = new TransformStream();
       const writer = writable.getWriter();
       const encoder = new TextEncoder();
@@ -324,7 +292,7 @@ export class SessionHub {
       });
     }
 
-    if (url.pathname === '/broadcast' && request.method === 'POST') {
+    if (url.pathname.endsWith('/broadcast') && request.method === 'POST') {
       const data = await request.json();
       const encoder = new TextEncoder();
       const message = encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
