@@ -38,7 +38,7 @@ webhooks.email-new/
 | **PWA Client** | Vanilla HTML/CSS/JS | Chat interface + sandboxed iframe preview |
 | **Desktop Receiver** | Node.js | Local HTTP server that writes webhook'd files to disk |
 | **Backend API** | FastAPI (Python) | User signup, API key management, OpenRouter proxy |
-| **Ingress Handler** | FastAPI (Python) | Receive external webhooks (email, Zapier, etc.) → Gemma → forward |
+| **Ingress Handler** | FastAPI (Python) | Receive external webhooks (email, webhook sources) → Gemma → forward |
 | **Cloudflare Worker** | JavaScript/Service Workers | Edge routing, OpenRouter proxy, webhook ingest, caching |
 | **AI Engine** | Gemma 4 (via OpenRouter) | Structured JSON code generation (html/css/js blocks) |
 
@@ -50,7 +50,7 @@ webhooks.email-new/
 - **Device preview toggle** — switch between desktop and mobile viewports
 - **Multiple API keys** — built-in redundancy across three OpenRouter keys for rate limiting
 - **Serverless by default** — the PWA can run against OpenRouter directly, no backend needed
-- **Extensible ingress** — receive webhooks from email, Zapier, n8n, or any HTTP source
+- **Extensible ingress** — receive webhooks from email, Cloudflare, or any HTTP source
 
 ---
 
