@@ -1,11 +1,23 @@
 (function () {
+  const MODELS = [
+    { id: 'google/gemma-4-26b-a4b-it:free', name: 'Gemma 4 (26B)', desc: 'Fast, default' },
+    { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 (31B)', desc: 'Higher quality' },
+    { id: 'google/gemma-3-12b-it', name: 'Gemma 3 (12B)', desc: 'Lightweight' },
+    { id: 'microsoft/phi-4', name: 'Phi-4', desc: 'Excellent for code' },
+    { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 (3B)', desc: 'Tiny & fast' },
+    { id: 'mistralai/mistral-small-3.1-24b-instruct', name: 'Mistral Small (24B)', desc: 'Edge model' },
+    { id: 'qwen/qwen-2.5-7b-instruct', name: 'Qwen 2.5 (7B)', desc: 'Solid all-rounder' },
+  ];
+
   const CONFIG = {
-    model: 'google/gemma-4-26b-a4b-it:free',
+    model: MODELS[0].id,
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: '',
     workerURL: '',
+    proxyEndpoint: '',
     siteURL: window.location.origin || 'https://webhooks.email',
     siteName: 'webhooks.email',
+    isProxyMode: false,
   };
 
   const dom = {
@@ -107,21 +119,85 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   function saveApiKey(key) {
     CONFIG.apiKey = key;
     localStorage.setItem(STORAGE_KEY, key);
+    if (key.startsWith('wek_')) {
+      CONFIG.isProxyMode = true;
+      CONFIG.proxyEndpoint = localStorage.getItem('webhooks_email_proxy') || '';
+      showModelSelector(true);
+    } else {
+      CONFIG.isProxyMode = false;
+      CONFIG.proxyEndpoint = '';
+      showModelSelector(false);
+    }
     updateStatus('connected');
   }
 
   function clearApiKey() {
     CONFIG.apiKey = '';
+    CONFIG.isProxyMode = false;
+    CONFIG.proxyEndpoint = '';
     localStorage.removeItem(STORAGE_KEY);
+    showModelSelector(false);
     updateStatus('disconnected');
   }
 
+  function setModel(modelId) {
+    if (MODELS.some(m => m.id === modelId)) {
+      CONFIG.model = modelId;
+    }
+  }
+
+  function getSelectedModel() {
+    return CONFIG.model;
+  }
+
+  function showModelSelector(show) {
+    const container = document.getElementById('modelSelector');
+    if (container) container.style.display = show ? 'inline-flex' : 'none';
+  }
+
+  function populateModelSelector() {
+    const container = document.getElementById('modelSelector');
+    if (!container) return;
+    container.innerHTML = '';
+    MODELS.forEach(m => {
+      const opt = document.createElement('button');
+      opt.className = 'model-opt' + (m.id === CONFIG.model ? ' active' : '');
+      opt.textContent = m.name;
+      opt.title = m.desc;
+      opt.dataset.model = m.id;
+      opt.addEventListener('click', () => {
+        container.querySelectorAll('.model-opt').forEach(b => b.classList.remove('active'));
+        opt.classList.add('active');
+        setModel(m.id);
+        CONFIG.model = m.id;
+        if (m.id !== MODELS[0].id && CONFIG.isProxyMode) {
+          addMessage('Switched to ' + m.name + ' (' + m.desc + ')', 'assistant');
+        }
+      });
+      container.appendChild(opt);
+    });
+  }
+
   async function validateApiKey(key) {
+    if (key.startsWith('wek_')) {
+      const proxyURL = localStorage.getItem('webhooks_email_proxy') || '';
+      if (!proxyURL) {
+        throw new Error('Set your webhooks.email backend URL first via WebhooksEmail.setProxyEndpoint()');
+      }
+      const res = await fetch(proxyURL.replace(/\/+$/, '') + '/api/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+      });
+      if (!res.ok) throw new Error('Backend validation failed: ' + res.status);
+      const data = await res.json();
+      if (!data.valid) throw new Error('Invalid webhooks.email key');
+      return { label: data.label, models: data.models || [] };
+    }
     const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
       headers: { 'Authorization': 'Bearer ' + key },
     });
     if (!res.ok) {
-      if (res.status === 401) throw new Error('Invalid API key');
+      if (res.status === 401) throw new Error('Invalid OpenRouter API key');
       throw new Error('Validation failed: ' + res.status);
     }
     const data = await res.json();
@@ -165,6 +241,15 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   function setWorkerURL(url) {
     CONFIG.workerURL = url.replace(/\/+$/, '');
     connectStream();
+  }
+
+  function setProxyEndpoint(endpoint) {
+    CONFIG.proxyEndpoint = endpoint;
+    if (endpoint) {
+      localStorage.setItem('webhooks_email_proxy', endpoint);
+    } else {
+      localStorage.removeItem('webhooks_email_proxy');
+    }
   }
 
   function setDesktopIP(ip) {
@@ -262,6 +347,23 @@ window.addEventListener('unhandledrejection', function(e) {
     if (!CONFIG.apiKey) {
       throw new Error('API key not set. Call WebhooksEmail.setApiKey() with your OpenRouter key.');
     }
+
+    if (CONFIG.isProxyMode && CONFIG.proxyEndpoint) {
+      const userMsg = messages.find(m => m.role === 'user');
+      const payload = { prompt: userMsg?.content || '', model: CONFIG.model };
+      const res = await fetch(CONFIG.proxyEndpoint.replace(/\/+$/, '') + '/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': CONFIG.apiKey },
+        body: JSON.stringify(payload),
+        signal: signal,
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error('Proxy: ' + res.status + ' ' + errBody);
+      }
+      return res.json();
+    }
+
     const res = await fetch(CONFIG.baseURL + '/chat/completions', {
       method: 'POST',
       headers: {
@@ -321,6 +423,12 @@ window.addEventListener('unhandledrejection', function(e) {
   }
 
   async function executeSkillChain(userPrompt, signal) {
+    if (CONFIG.isProxyMode) {
+      showStatus('Generating via webhooks.email...');
+      return callGemma([
+        { role: 'user', content: userPrompt },
+      ], { signal });
+    }
     const blueprint = await skillArchitect(userPrompt, signal);
     const uiShell = await skillStyler(userPrompt, blueprint, signal);
     const appCode = await skillEngineer(uiShell, blueprint, signal);
@@ -566,12 +674,16 @@ window.addEventListener('unhandledrejection', function(e) {
         try {
           const info = await validateApiKey(key);
           saveApiKey(key);
+          const label = info.label || info.name || 'OpenRouter';
           feedback.className = 'key-success';
-          feedback.textContent = 'Key validated! Connected as ' + (info.label || info.name || 'OpenRouter') + '.';
-          setTimeout(hideKeyModal, 1200);
+          feedback.textContent = 'Connected as ' + label + (key.startsWith('wek_') ? '. Model selector available.' : '.');
+          if (key.startsWith('wek_') || key.startsWith('sk-or-')) {
+            populateModelSelector();
+          }
+          setTimeout(hideKeyModal, 1500);
         } catch (err) {
           feedback.className = 'key-error';
-          feedback.textContent = err.message + '. Check your key at openrouter.ai/keys.';
+          feedback.textContent = err.message;
         } finally {
           validateBtn.disabled = false;
           validateBtn.textContent = 'Validate & Save';
@@ -600,8 +712,11 @@ window.addEventListener('unhandledrejection', function(e) {
   window.WebhooksEmail = {
     setApiKey,
     setBaseURL,
+    setProxyEndpoint,
     setWorkerURL,
     setDesktopIP,
+    setModel,
+    getSelectedModel,
     sendPrompt,
     sendToDesktop,
     createWebhookEndpoint,
@@ -614,6 +729,7 @@ window.addEventListener('unhandledrejection', function(e) {
     showKeyModal,
     hideKeyModal,
     getLastResult: () => lastResult,
+    getModels: () => MODELS,
     getSkills: () => Object.keys(SKILLS),
   };
 })();

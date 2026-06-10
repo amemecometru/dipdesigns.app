@@ -99,6 +99,14 @@
       transition: max-width 0.3s ease;
     }
     iframe#preview.mobile { max-width: 375px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+    .model-selector { display: inline-flex; gap: 4px; align-items: center; }
+    .model-selector .model-opt {
+      background: none; border: 1px solid var(--border); color: var(--text-dim);
+      padding: 3px 8px; border-radius: 6px; cursor: pointer; font-size: 11px;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .model-selector .model-opt:hover { border-color: var(--accent); color: var(--text); }
+    .model-selector .model-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
       display: flex; align-items: center; justify-content: center;
@@ -171,6 +179,7 @@
         <button class="device-btn" data-device="mobile">Mobile</button>
         <button class="clear-btn" id="sendDesktopBtn" style="display:none;background:none;border:1px solid var(--success);color:var(--success);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">Send to Desktop</button>
         <button class="clear-btn" id="webhookerBtn" style="display:none;background:none;border:1px solid var(--accent);color:var(--accent);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">Webhook</button>
+        <span id="modelSelector" class="model-selector" style="display:none"></span>
         <button class="clear-btn" id="clearPreviewBtn">Clear</button>
       </div>
       <iframe id="preview" sandbox="allow-scripts allow-same-origin" title="Live Preview"></iframe>
