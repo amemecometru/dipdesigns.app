@@ -1,0 +1,103 @@
+  Architectural Alignment & Implementation Brief
+
+ 1. Core Architecture Clarification (Read Carefully)
+There is minor confusion regarding the role of the backend and OpenRouter. 
+* **OpenRouter is NOT the backend framework.** OpenRouter is strictly used as our cloud-hosted API gateway to run **Gemma 4**, removing the need for users to download models locally.
+* **The PWA is Client-First / Serverless-Ready.** The execution logic lives in `client.js`. The `.env` keys are utilized to authenticate these calls. Do NOT restructure the backend or alter the current OpenRouter API key routing until the core application is functional.
+
+---
+
+ 2. Target Implementation: Client-Side SkillChains
+We are keeping the orchestration entirely within `client.js`. Instead of sending one massive prompt, `client.js` will execute a linear sequence of distinct model skills to guarantee high-quality code generation.
+
+** ** ** SkillChain Execution Flow in `client.js`
+```javascript
+// client.js - Orchestrator
+async function generateVibeUI(userPrompt) {
+  try {
+    showLoadingStatus("Architecting application state...");
+    // Skill 1: Extract state data structure
+    const stateBlueprint = await callOpenRouter(userPrompt, systemPrompts.architect);
+
+    showLoadingStatus("Designing Tailwind layout...");
+    // Skill 2: Generate structural HTML/CSS using the state blueprint
+    const uiShell = await callOpenRouter(
+      `User intent: ${userPrompt}. Structure your elements around this data schema: ${stateBlueprint}`, 
+      systemPrompts.styler
+    );
+
+    showLoadingStatus("Injecting interactive logic...");
+    // Skill 3: Inject Vanilla JS interactivity and bind to state
+    const completeApp = await callOpenRouter(
+      `Add dynamic script handling to this HTML layout: ${uiShell}. Use this state data: ${stateBlueprint}`,
+      systemPrompts.engineer
+    );
+
+    // Final step: Inject telemetry and render to the Virtual File System
+    const runtimeApp = injectTelemetry(completeApp);
+    renderToSandboxIframe(runtimeApp);
+    
+  } catch (error) {
+    console.error("SkillChain broken:", error);
+  }
+}
+
+#--------------------------------------------------------------------------------------------------
+
+
+## All Currently in    <>---<<<<<>>>>>-<>  Client.js  <>-<<<<<>>>>>---<>
+## Telemetry Utility
+# SkillChain
+#---------------------------------------------------------------------------------------------------
+
+async function executeSkillChain(userPrompt) {
+  // Step 1: Define the Application State Schema
+  const stateBlueprint = await callGemma(userPrompt, "Output only a JSON state machine for this app.");
+  
+  // Step 2: Pass that state to build the UI Shell
+  const uiShell = await callGemma(
+    `User wants: ${userPrompt}. Use this state schema: ${stateBlueprint}`, 
+    "Output only HTML and Tailwind CSS layout."
+  );
+  
+  // Step 3: Inject logic and compile into VFS
+  const finalApp = await callGemma(
+    `Inject vanilla JS interactivity into this HTML: ${uiShell} using this state: ${stateBlueprint}`,
+    "Output the finalized, self-contained single-file application."
+  );
+
+  renderToVirtualFileSystem(finalApp);
+}
+
+
+------------------------------------------------------------------------
+       <>---<<>>-<> Telemetry Injection Utility <>-<<>>---<>
+------------------------------------------------------------------------
+# client.js:
+---
+function injectTelemetry(htmlContent) {
+  const telemetryScript = `
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        // Forward the runtime crash back to the client/ingress handler to trigger a healing loop
+        window.parent.postMessage({
+          type: 'IFRAME_RUNTIME_ERROR',
+          error: message,
+          line: lineno,
+          col: colno
+        }, '*');
+        return true;
+      };
+    </script>
+  `;
+  // Append right before the closing body tag
+  return htmlContent.replace("</body>", `${telemetryScript}</body>`);
+}
+
+// Window listener to catch the iframe's cry for help
+window.addEventListener('message', async (event) => {
+  if (event.data.type === 'IFRAME_RUNTIME_ERROR') {
+    console.warn("Self-Healing triggered for error:", event.data.error);
+    // TODO: Automatic re-prompting loop back to Gemma via callOpenRouter() goes here
+  }
+});

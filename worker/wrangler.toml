@@ -5,6 +5,21 @@ compatibility_date = "2026-01-01"
 [placement]
 mode = "smart"
 
+# KV for persisting VFS session state
+# Create: wrangler kv:namespace create "WEBHOOKS_KV"
+[[kv_namespaces]]
+binding = "WEBHOOKS_KV"
+id = ""
+
+# Durable Object for real-time SSE broadcast hub
+[[durable_objects.bindings]]
+name = "SESSION_HUB"
+class_name = "SessionHub"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SessionHub"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "webhooks-email"

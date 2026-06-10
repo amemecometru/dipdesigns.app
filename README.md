@@ -137,15 +137,7 @@ WebhooksEmail.setDesktopIP('192.168.1.42')
 
 ---
 
-## Monetization Model
 
-| Tier | Features |
-|------|----------|
-| **Free** | Text-to-UI generation, sandboxed browser preview, transient hosting |
-| **Premium Dev** | Permanent deployment URLs (my-app.webhooks.email), auto-render on webhook |
-| **Pro** | One-click export, desktop sync, unlimited webhook ingress |
-
----
 
 ## Built With
 
