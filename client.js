@@ -99,6 +99,115 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     },
   };
 
+  const BUILTIN_SKILLS = [
+    { id: 'dark-dashboard', name: 'Dark Dashboard', category: 'dashboard', prompt: 'a dark dashboard with sidebar navigation, stat cards, a chart area, and a top header with user avatar', tags: ['dashboard', 'dark', 'analytics'], contributor: 'webhooks.email' },
+    { id: 'landing-page', name: 'Landing Page', category: 'landing', prompt: 'a modern landing page with a hero section, feature grid, testimonials, and a footer with social links', tags: ['landing', 'marketing', 'hero'], contributor: 'webhooks.email' },
+    { id: 'chat-interface', name: 'Chat Interface', category: 'app', prompt: 'a messaging chat interface with a contact list on the left, message bubbles, and an input bar at the bottom', tags: ['chat', 'messaging', 'social'], contributor: 'webhooks.email' },
+    { id: 'ecommerce-product', name: 'Product Page', category: 'ecommerce', prompt: 'an ecommerce product page with image gallery, product details, size selector, add to cart button, and reviews section', tags: ['ecommerce', 'product', 'shop'], contributor: 'webhooks.email' },
+    { id: 'settings-panel', name: 'Settings Panel', category: 'dashboard', prompt: 'a settings panel with tabs for profile, notifications, security, and appearance with toggle switches and form inputs', tags: ['settings', 'form', 'profile'], contributor: 'webhooks.email' },
+    { id: 'analytics-dashboard', name: 'Analytics Dashboard', category: 'dashboard', prompt: 'an analytics dashboard with a date range picker, line chart, bar chart, stat cards, and a data table', tags: ['dashboard', 'analytics', 'charts'], contributor: 'webhooks.email' },
+    { id: 'signin-form', name: 'Sign In Form', category: 'auth', prompt: 'a clean sign-in page with email and password fields, remember me checkbox, social login buttons, and a sign up link', tags: ['auth', 'login', 'form'], contributor: 'webhooks.email' },
+    { id: 'pricing-table', name: 'Pricing Table', category: 'landing', prompt: 'a pricing comparison page with three tiers (Free, Pro, Enterprise), feature lists, and CTA buttons with a toggle for monthly/yearly', tags: ['pricing', 'landing', 'saas'], contributor: 'webhooks.email' },
+    { id: 'music-player', name: 'Music Player', category: 'media', prompt: 'a music player UI with album art, track list, progress bar, play/pause/skip controls, and volume slider', tags: ['media', 'player', 'music'], contributor: 'webhooks.email' },
+    { id: 'kanban-board', name: 'Kanban Board', category: 'app', prompt: 'a kanban board with three columns (Todo, In Progress, Done), draggable task cards with avatars and priority labels', tags: ['kanban', 'project', 'productivity'], contributor: 'webhooks.email' },
+    { id: 'weather-widget', name: 'Weather Dashboard', category: 'widget', prompt: 'a weather dashboard showing current conditions, 7-day forecast, hourly breakdown, and location search', tags: ['weather', 'widget', 'data'], contributor: 'webhooks.email' },
+    { id: 'social-feed', name: 'Social Feed', category: 'social', prompt: 'a social media feed with post cards containing user avatar, text content, image, like/comment/share buttons', tags: ['social', 'feed', 'cards'], contributor: 'webhooks.email' },
+  ];
+
+  const STORAGE_SKILLS_KEY = 'webhooks_email_user_skills';
+
+  function getUserSkills() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_SKILLS_KEY)) || [];
+    } catch { return []; }
+  }
+
+  function saveUserSkill(skill) {
+    const skills = getUserSkills();
+    skill.id = 'user-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    skill.contributor = 'You';
+    skills.push(skill);
+    localStorage.setItem(STORAGE_SKILLS_KEY, JSON.stringify(skills));
+    return skill;
+  }
+
+  function removeUserSkill(id) {
+    const skills = getUserSkills().filter(s => s.id !== id);
+    localStorage.setItem(STORAGE_SKILLS_KEY, JSON.stringify(skills));
+  }
+
+  function getAllSkills() {
+    return [...BUILTIN_SKILLS, ...getUserSkills()];
+  }
+
+  function renderLibrary(category, query) {
+    const grid = document.getElementById('skillGrid');
+    const filters = document.getElementById('categoryFilters');
+    if (!grid || !filters) return;
+
+    const all = getAllSkills();
+    const cats = [...new Set(all.map(s => s.category))];
+    filters.innerHTML = '<button class="active" data-cat="">All</button>' +
+      cats.map(c => '<button data-cat="' + c + '">' + c.charAt(0).toUpperCase() + c.slice(1) + '</button>').join('');
+    filters.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filters.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderLibrary(btn.dataset.cat, document.getElementById('librarySearch').value);
+      });
+    });
+
+    let filtered = all;
+    if (category) filtered = filtered.filter(s => s.category === category);
+    if (query) filtered = filtered.filter(s =>
+      s.name.toLowerCase().includes(query.toLowerCase()) ||
+      (s.tags || []).some(t => t.includes(query.toLowerCase()))
+    );
+
+    if (filtered.length === 0) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">No skills found. <button onclick="WebhooksEmail.showAddSkill()" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:12px;font-family:var(--font)">Add your own</button></div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(s => {
+      const isUser = s.contributor === 'You';
+      return '<div class="skill-card">' +
+        '<span class="tag">' + s.category + (isUser ? ' &middot; Yours' : '') + '</span>' +
+        '<h3>' + s.name + '</h3>' +
+        '<p>' + (s.prompt.slice(0, 100)) + (s.prompt.length > 100 ? '...' : '') + '</p>' +
+        '<div class="skill-footer">' +
+        '<span>' + (s.tags ? s.tags.slice(0, 3).join(', ') : '') + '</span>' +
+        '<div>' +
+        (isUser ? '<button class="use-btn" style="margin-right:6px;background:var(--error)" onclick="WebhooksEmail._removeSkill(\'' + s.id + '\')">X</button>' : '') +
+        '<button class="use-btn" onclick="WebhooksEmail._useSkill(\'' + s.id + '\')">Use Skill</button>' +
+        '</div></div></div>';
+    }).join('');
+  }
+
+  function switchView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = document.getElementById('view-' + viewId);
+    if (target) target.classList.add('active');
+    document.querySelectorAll('header nav button').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === viewId);
+    });
+    if (viewId === 'library') {
+      setTimeout(() => renderLibrary('', ''), 50);
+    }
+  }
+
+  function showAddSkill() {
+    const name = prompt('Skill name:');
+    if (!name) return;
+    const prompt_text = prompt('Prompt / description (what should the AI generate?):');
+    if (!prompt_text) return;
+    const category = prompt('Category (e.g. dashboard, landing, app, widget):') || 'uncategorized';
+    const tags = prompt('Tags (comma separated):') || '';
+    const skill = { name, prompt: prompt_text, category, tags: tags.split(',').map(t => t.trim()).filter(Boolean) };
+    saveUserSkill(skill);
+    renderLibrary('', '');
+  }
+
   let abortController = null;
   let lastResult = null;
   let lastPrompt = '';
@@ -649,6 +758,18 @@ window.addEventListener('unhandledrejection', function(e) {
       });
     }
 
+    document.querySelectorAll('header nav button').forEach(btn => {
+      btn.addEventListener('click', () => switchView(btn.dataset.view));
+    });
+
+    const searchInput = document.getElementById('librarySearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const activeCat = document.querySelector('#categoryFilters .active');
+        renderLibrary(activeCat ? activeCat.dataset.cat : '', searchInput.value);
+      });
+    }
+
     const settingsBtn = document.getElementById('settingsBtn');
     if (settingsBtn) {
       settingsBtn.addEventListener('click', showKeyModal);
@@ -728,6 +849,27 @@ window.addEventListener('unhandledrejection', function(e) {
     clearApiKey,
     showKeyModal,
     hideKeyModal,
+    switchView,
+    renderLibrary,
+    showAddSkill,
+    getAllSkills: () => getAllSkills(),
+    getBuiltinSkills: () => BUILTIN_SKILLS,
+    getUserSkills: () => getUserSkills(),
+    _useSkill: (id) => {
+      const all = getAllSkills();
+      const skill = all.find(s => s.id === id);
+      if (skill) {
+        switchView('app');
+        dom.promptInput.value = skill.prompt;
+        dom.promptInput.style.height = 'auto';
+        dom.promptInput.focus();
+        sendPrompt(skill.prompt);
+      }
+    },
+    _removeSkill: (id) => {
+      removeUserSkill(id);
+      renderLibrary('', document.getElementById('librarySearch')?.value || '');
+    },
     getLastResult: () => lastResult,
     getModels: () => MODELS,
     getSkills: () => Object.keys(SKILLS),
