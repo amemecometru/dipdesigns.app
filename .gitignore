@@ -8,3 +8,8 @@ dist/
 node_modules/
 .DS_Store
 *.log
+AGENTS.md
+CriticalBug
+/design-package-one
+mercurial-tessellation.html
+optimize-gemini.txt

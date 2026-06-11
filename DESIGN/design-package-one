@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --copper: #b87333;
+            --copper-bright: #fbbf24;
+            --copper-dark: #78350f;
+            --haze-bg: #0a0a0c;
+            --spectral-cyan: #22d3ee;
+            --spectral-magenta: #db2777;
+            --wire-stroke: 1.5px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--haze-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* SVG Filters for Spectral Diffusion */
+        .svg-filters {
+            position: absolute;
+            width: 0;
+            height: 0;
+        }
+
+        .breadcrumb-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            padding: 4rem;
+        }
+
+        /* The continuous copper wire */
+        .wire-background {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: var(--wire-stroke);
+            background: linear-gradient(90deg, 
+                transparent, 
+                var(--copper-dark) 10%, 
+                var(--copper) 50%, 
+                var(--copper-dark) 90%, 
+                transparent
+            );
+            transform: translateY(-50%);
+            z-index: 1;
+            filter: url(#spectral-diffusion);
+            opacity: 0.6;
+        }
+
+        .breadcrumb-item {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            cursor: pointer;
+            padding: 0 2rem;
+            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .node-geometry {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.5s ease;
+        }
+
+        /* Geometric outer wireframe */
+        .node-geometry::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: var(--wire-stroke) solid var(--copper);
+            transform: rotate(45deg);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 0 5px var(--copper-dark));
+        }
+
+        /* Inner refractive haze */
+        .node-geometry::after {
+            content: '';
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--copper-bright);
+            border-radius: 50%;
+            box-shadow: 0 0 15px 5px var(--copper);
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+
+        .breadcrumb-item:hover .node-geometry::before {
+            transform: rotate(135deg) scale(1.2);
+            border-color: var(--copper-bright);
+            box-shadow: 0 0 20px var(--spectral-cyan), 0 0 40px var(--spectral-magenta);
+            filter: blur(0.5px);
+        }
+
+        .breadcrumb-item:hover .node-geometry::after {
+            opacity: 1;
+            transform: scale(1.5);
+            background: #fff;
+        }
+
+        .content-stack {
+            margin-top: 1.5rem;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .index {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--copper);
+            letter-spacing: 0.2rem;
+            margin-bottom: 0.25rem;
+            opacity: 0.6;
+        }
+
+        .label {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.1rem;
+            transition: color 0.3s ease, letter-spacing 0.3s ease;
+        }
+
+        .breadcrumb-item:hover .label {
+            color: var(--copper-bright);
+            letter-spacing: 0.2rem;
+        }
+
+        /* Geometric connectors (Triangles) */
+        .connector {
+            width: 60px;
+            height: 2px;
+            background: transparent;
+            position: relative;
+        }
+
+        .connector::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            border-right: 1px solid var(--copper);
+            border-bottom: 1px solid var(--copper);
+            transform: translate(-50%, -50%) rotate(-45deg);
+            opacity: 0.3;
+        }
+
+        /* Grainy Spectral Haze Background */
+        .haze-overlay {
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(184, 115, 51, 0.05) 0%, transparent 70%),
+                radial-gradient(circle at 20% 30%, rgba(34, 211, 238, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(219, 39, 119, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .grain-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.04;
+            mix-blend-mode: overlay;
+        }
+
+        @keyframes entrance {
+            from { opacity: 0; transform: translateY(20px); filter: blur(10px); }
+            to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+
+        .breadcrumb-item {
+            animation: entrance 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        .breadcrumb-item:nth-child(1) { animation-delay: 0.1s; }
+        .breadcrumb-item:nth-child(3) { animation-delay: 0.2s; }
+        .breadcrumb-item:nth-child(5) { animation-delay: 0.3s; }
+        .breadcrumb-item:nth-child(7) { animation-delay: 0.4s; }
+
+    </style>
+</head>
+<body>
+
+    <svg class="svg-filters">
+        <filter id="spectral-diffusion">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="
+                1 0 0 0 0
+                0 1 0 0 0
+                0 0 1.2 0 0
+                0 0 0 1 0" result="cyan-shift" />
+            <feOffset in="cyan-shift" dx="1" dy="0" result="offset-1" />
+            
+            <feColorMatrix in="blur" type="matrix" values="
+                1.2 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 1 0" result="red-shift" />
+            <feOffset in="red-shift" dx="-1" dy="0" result="offset-2" />
+            
+            <feBlend in="offset-1" in2="offset-2" mode="screen" />
+            <feComposite in2="SourceGraphic" operator="over" />
+        </filter>
+
+        <filter id="grain">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+        </filter>
+    </svg>
+
+    <div class="grain-layer" style="filter: url(#grain);"></div>
+    <div class="haze-overlay"></div>
+
+    <nav class="breadcrumb-wrapper">
+        <div class="wire-background"></div>
+
+        <a class="breadcrumb-item">
+            <div class="node-geometry"></div>
+            <div class="content-stack">
+                <span class="index">01/CORE</span>
+                <span class="label">Architecture</span>
+            </div>
+        </a>
+
+        <div class="connector"></div>
+
+        <a class="breadcrumb-item">
+            <div class="node-geometry"></div>
+            <div class="content-stack">
+                <span class="index">02/PRISM</span>
+                <span class="label">Diffusion</span>
+            </div>
+        </a>
+
+        <div class="connector"></div>
+
+        <a class="breadcrumb-item">
+            <div class="node-geometry"></div>
+            <div class="content-stack">
+                <span class="index">03/WAVE</span>
+                <span class="label">Spectrals</span>
+            </div>
+        </a>
+
+        <div class="connector"></div>
+
+        <a class="breadcrumb-item">
+            <div class="node-geometry"></div>
+            <div class="content-stack">
+                <span class="index">04/NODE</span>
+                <span class="label">Finality</span>
+            </div>
+        </a>
+    </nav>
+
+    <script>
+        // Subtle Parallax effect on mouse move
+        const wrapper = document.querySelector('.breadcrumb-wrapper');
+        const items = document.querySelectorAll('.breadcrumb-item');
+        
+        document.addEventListener('mousemove', (e) => {
+            const xAxis = (window.innerWidth / 2 - e.pageX) / 40;
+            const yAxis = (window.innerHeight / 2 - e.pageY) / 40;
+            
+            wrapper.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+            
+            items.forEach((item, index) => {
+                const depth = (index + 1) * 2;
+                item.style.transform = `translateZ(${depth}px)`;
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --base-dark: #0a0e12;
+            --copper-raw: #e37e44;
+            --copper-glow: #ff9d6a;
+            --patina-primary: #3de1d1;
+            --patina-dark: #1b4d4a;
+            --oxide-bg: #141d1c;
+            --trace-dim: rgba(227, 126, 68, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--base-dark);
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Patina Grain Filter */
+        .patina-texture {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.12;
+            mix-blend-mode: overlay;
+            z-index: 10;
+        }
+
+        .canvas-bg {
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(circle at 20% 30%, var(--patina-dark) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, #2d1b14 0%, transparent 40%);
+            opacity: 0.4;
+            filter: blur(60px);
+        }
+
+        .container {
+            position: relative;
+            z-index: 5;
+            width: 90%;
+            max-width: 1000px;
+        }
+
+        /* Electric Tracery Header */
+        .system-header {
+            margin-bottom: 4rem;
+            transform: translateX(-20px);
+            opacity: 0;
+            animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .system-header h1 {
+            font-size: 4rem;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            background: linear-gradient(135deg, var(--copper-raw) 0%, var(--patina-primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 0.9;
+        }
+
+        /* Breadcrumb Component */
+        .conductive-path {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            position: relative;
+        }
+
+        .node {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.4s ease;
+        }
+
+        .node-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--patina-primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.6;
+            transition: 0.3s;
+        }
+
+        .node-content {
+            font-family: 'Space Mono', monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--copper-raw);
+            padding: 8px 16px;
+            border: 1px solid var(--trace-dim);
+            background: rgba(227, 126, 68, 0.03);
+            position: relative;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .node-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: var(--copper-raw);
+            box-shadow: 0 0 15px var(--copper-glow);
+        }
+
+        /* The Trace Connector */
+        .trace-connector {
+            width: 80px;
+            height: 60px;
+            position: relative;
+            margin-top: 25px;
+        }
+
+        .trace-svg {
+            width: 100%;
+            height: 100%;
+            fill: none;
+            stroke: var(--trace-dim);
+            stroke-width: 1.5;
+        }
+
+        .trace-active {
+            stroke: var(--patina-primary);
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+            animation: drawTrace 1.5s ease forwards;
+            filter: drop-shadow(0 0 5px var(--patina-primary));
+        }
+
+        /* Animations */
+        @keyframes drawTrace {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes slideIn {
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; filter: brightness(1.5); }
+            100% { opacity: 0.4; }
+        }
+
+        .node:hover .node-content {
+            background: rgba(61, 225, 209, 0.05);
+            border-color: var(--patina-primary);
+            color: #fff;
+        }
+
+        .node:hover .node-label {
+            opacity: 1;
+            transform: translateY(-2px);
+        }
+
+        .current .node-content {
+            background: linear-gradient(90deg, rgba(227, 126, 68, 0.1), transparent);
+            border-color: var(--copper-raw);
+        }
+
+        .current .node-label {
+            color: var(--copper-raw);
+            opacity: 1;
+        }
+
+        .electric-pulse {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--patina-primary);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--patina-primary);
+            offset-path: path('M 0 15 L 40 15 L 40 45 L 80 45');
+            animation: travel 3s infinite linear;
+        }
+
+        @keyframes travel {
+            0% { offset-distance: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { offset-distance: 100%; opacity: 0; }
+        }
+
+        /* Decorative Elements */
+        .coord-data {
+            position: absolute;
+            bottom: -100px;
+            right: 0;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--patina-dark);
+            text-align: right;
+            line-height: 1.5;
+        }
+
+    </style>
+</head>
+<body>
+
+    <svg class="patina-texture">
+        <filter id="noiseFilter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="3" stitchTiles="stitch"/>
+            <feColorMatrix type="saturate" values="0"/>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+    </svg>
+
+    <div class="canvas-bg"></div>
+
+    <main class="container">
+        <header class="system-header">
+            <h1>Conductive<br>Archive</h1>
+        </header>
+
+        <nav class="conductive-path">
+            <!-- Node 1 -->
+            <div class="node">
+                <span class="node-label">Origin</span>
+                <div class="node-content">CORE_UNIT</div>
+            </div>
+
+            <!-- Connector 1 -->
+            <div class="trace-connector">
+                <div class="electric-pulse"></div>
+                <svg class="trace-svg" viewBox="0 0 80 60">
+                    <path d="M 0 15 L 40 15 L 40 45 L 80 45" />
+                    <path class="trace-active" d="M 0 15 L 40 15 L 40 45 L 80 45" style="animation-delay: 0.2s;" />
+                </svg>
+            </div>
+
+            <!-- Node 2 -->
+            <div class="node">
+                <span class="node-label">Pathway</span>
+                <div class="node-content">NET_TRACERY</div>
+            </div>
+
+            <!-- Connector 2 -->
+            <div class="trace-connector">
+                <div class="electric-pulse" style="animation-delay: 1.5s;"></div>
+                <svg class="trace-svg" viewBox="0 0 80 60">
+                    <path d="M 0 45 L 40 45 L 40 15 L 80 15" />
+                    <path class="trace-active" d="M 0 45 L 40 45 L 40 15 L 80 15" style="animation-delay: 0.8s;" />
+                </svg>
+            </div>
+
+            <!-- Node 3 -->
+            <div class="node current">
+                <span class="node-label">Active_State</span>
+                <div class="node-content">PATINA_V.04</div>
+            </div>
+
+            <div class="coord-data">
+                LAT: 45.32.11 // LONG: 12.00.94<br>
+                VOLTAGE: 4.2V [STABLE]<br>
+                OXIDATION_RATE: 0.003%
+            </div>
+        </nav>
+    </main>
+
+    <script>
+        // Subtle interaction: follow mouse with glow
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX / window.innerWidth) * 100;
+            const y = (e.clientY / window.innerHeight) * 100;
+            document.querySelector('.canvas-bg').style.background = `
+                radial-gradient(circle at ${x}% ${y}%, var(--copper-glow) 0%, transparent 15%),
+                radial-gradient(circle at 20% 30%, var(--patina-dark) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, #2d1b14 0%, transparent 40%)
+            `;
+        });
+
+        // Click interaction for breadcrumbs
+        const nodes = document.querySelectorAll('.node');
+        nodes.forEach(node => {
+            node.addEventListener('click', () => {
+                nodes.forEach(n => n.classList.remove('current'));
+                node.classList.add('current');
+            });
+        });
+    </script>
+</body>
+</html>

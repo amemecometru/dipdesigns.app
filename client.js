@@ -25,7 +25,7 @@
     promptInput: document.getElementById('promptInput'),
     sendBtn: document.getElementById('sendBtn'),
     preview: document.getElementById('preview'),
-    deviceBtns: document.querySelectorAll('.device-btn'),
+    deviceBtns: document.querySelectorAll('.toolbar-btn[data-device]'),
     clearBtn: document.getElementById('clearPreviewBtn'),
   };
 
@@ -775,6 +775,16 @@ window.addEventListener('unhandledrejection', function(e) {
       settingsBtn.addEventListener('click', showKeyModal);
     }
 
+    const appApiBtn = document.getElementById('appApiBtn');
+    if (appApiBtn) {
+      appApiBtn.addEventListener('click', showKeyModal);
+    }
+
+    const docsApiBtn = document.getElementById('docsApiBtn');
+    if (docsApiBtn) {
+      docsApiBtn.addEventListener('click', showKeyModal);
+    }
+
     const keyInput = document.getElementById('keyInput');
     const validateBtn = document.getElementById('keyValidateBtn');
     const skipBtn = document.getElementById('keySkipBtn');
@@ -823,9 +833,7 @@ window.addEventListener('unhandledrejection', function(e) {
       if (e.key === 'Enter') validateBtn.click();
     });
 
-    if (!loadApiKey()) {
-      showKeyModal();
-    } else {
+    if (loadApiKey()) {
       updateStatus('connected');
     }
   });
