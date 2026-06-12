@@ -19,3 +19,5 @@ opus4-8-handoff.md
 opus4-8-handoff-webhooks.patch
 generic-files/
 opus-files/
+worker/.wrangler/
+stripe-logiclemoai

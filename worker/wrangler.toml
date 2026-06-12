@@ -1,31 +1,36 @@
 name = "webhooks-email"
 main = "index.js"
-compatibility_date = "2026-01-01"
+compatibility_date = "2026-06-11"
 
 [placement]
 mode = "smart"
 
-# KV for persisting VFS session state (OPTIONAL -- the SSE hub works without it).
-# An empty id makes `wrangler deploy` FAIL, so this stays commented out until you
-# create the namespace and paste the real id:
-#   wrangler kv namespace create "WEBHOOKS_KV"
-# Then uncomment the three lines below and set id.
-# [[kv_namespaces]]
-# binding = "WEBHOOKS_KV"
-# id = "PASTE_REAL_KV_NAMESPACE_ID_HERE"
+[assets]
+directory = "./assets"
 
-# Durable Object for real-time SSE broadcast hub
+[[kv_namespaces]]
+binding = "WEBHOOKS_KV"
+id = "5b35c96a0bdd418685bfb6ce68884acd"
+
 [[durable_objects.bindings]]
 name = "SESSION_HUB"
 class_name = "SessionHub"
 
+[[durable_objects.bindings]]
+name = "CREDIT_LEDGER"
+class_name = "CreditLedger"
+
 [[migrations]]
 tag = "v1"
-new_classes = ["SessionHub"]
+new_sqlite_classes = ["SessionHub"]
 
-# NOTE: removed the [[d1_databases]] block -- the worker never references env.DB and
-# an empty database_id breaks `wrangler deploy`. Re-add it with a real database_id
-# only when you actually wire D1.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CreditLedger"]
+
+[vars]
+CREDIT_COST = "1"
+FREE_DAILY_LIMIT = "3"
 
 [env.production]
 vars = { ENVIRONMENT = "production" }

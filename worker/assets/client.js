@@ -13,7 +13,7 @@
     model: MODELS[0].id,
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: '',
-    workerURL: '',
+    workerURL: 'https://webhooks-email.logiclemonai.workers.dev',
     proxyEndpoint: '',
     siteURL: window.location.origin || 'https://webhooks.email',
     siteName: 'webhooks.email',
@@ -481,7 +481,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
   // ---------- Zero-key free trial + in-UI settings ----------
   const FREE_KEY = 'webhooks_email_free_remaining';
-  const DEFAULT_FREE_USES = 1;
+  const DEFAULT_FREE_USES = 3;
   function getFreeRemaining() {
     const v = parseInt(localStorage.getItem(FREE_KEY), 10);
     return Number.isFinite(v) ? Math.max(0, v) : DEFAULT_FREE_USES;
@@ -505,21 +505,18 @@ window.addEventListener('unhandledrejection', function(e) {
     }
   }
   async function callFree(userPrompt, signal) {
-    const base = (CONFIG.workerURL || CONFIG.proxyEndpoint || '').replace(/\/+$/, '');
+    const workerURL = CONFIG.workerURL || localStorage.getItem('webhooks_email_worker');
+    const base = (workerURL || CONFIG.proxyEndpoint || '').replace(/\/+$/, '');
     const res = await fetch(base + '/api/free-generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: userPrompt }),
       signal: signal,
     });
-    if (res.status === 429) {
-      const data = await res.json();
-      setFreeRemaining(0);
-      throw new Error('Demo used. Sign in with GitHub or Google for more free uses — or add your own key in Settings.');
-    }
+    if (res.status === 429) throw new Error('Free generations used up. Add a free OpenRouter key in Settings for unlimited use.');
     if (!res.ok) throw new Error('Free generate failed (' + res.status + ').');
     const data = await res.json();
-    setFreeRemaining(data.remaining || 0);
+    setFreeRemaining(getFreeRemaining() - 1);
     return data;
   }
   function saveConnectionsFromModal() {
@@ -547,6 +544,83 @@ window.addEventListener('unhandledrejection', function(e) {
       if (el) el.value = localStorage.getItem(map[id]) || '';
     }
     refreshFreeStatus();
+    refreshCreditStatus();
+  }
+
+  async function refreshCreditStatus() {
+    const statusEl = document.getElementById('creditStatus');
+    const actionsEl = document.getElementById('creditActions');
+    const fb = document.getElementById('creditFeedback');
+    if (!statusEl) return;
+
+    const workerURL = CONFIG.workerURL || localStorage.getItem('webhooks_email_worker');
+    const key = CONFIG.apiKey || localStorage.getItem(STORAGE_KEY);
+
+    if (!key || !workerURL) {
+      statusEl.textContent = !key ? 'Add an API key to purchase credits.' : 'Set your Worker URL in Device Sync to enable credits.';
+      if (actionsEl) actionsEl.style.display = 'none';
+      return;
+    }
+
+    statusEl.textContent = 'Loading...';
+    if (actionsEl) actionsEl.style.display = 'none';
+    if (fb) { fb.className = ''; fb.textContent = ''; }
+
+    try {
+      const res = await fetch(workerURL.replace(/\/+$/, '') + '/api/balance', {
+        headers: key.startsWith('wek_') ? { 'x-api-key': key } : {},
+      });
+      if (!res.ok) throw new Error('' + res.status);
+      const data = await res.json();
+      const parts = [];
+      if (data.balance > 0) parts.push(data.balance + ' credits');
+      if (data.subscription?.status === 'active') parts.push('Pro (active)');
+      if (data.free?.remaining > 0) parts.push(data.free.remaining + ' free/day');
+      statusEl.textContent = parts.length ? parts.join(' · ') : 'No credits yet.';
+      if (actionsEl) actionsEl.style.display = 'block';
+    } catch (err) {
+      statusEl.textContent = 'Could not load balance (' + err.message + ').';
+      if (actionsEl) actionsEl.style.display = 'none';
+    }
+
+    if (window.location.search.includes('checkout=success')) {
+      if (fb) { fb.className = 'key-success'; fb.textContent = 'Purchase complete! Refreshing balance...'; }
+      setTimeout(refreshCreditStatus, 2000);
+    }
+  }
+
+  async function buyCredits(item) {
+    const fb = document.getElementById('creditFeedback');
+    if (!fb) return;
+    fb.className = '';
+    fb.textContent = 'Opening checkout...';
+
+    const workerURL = CONFIG.workerURL || localStorage.getItem('webhooks_email_worker');
+    const key = CONFIG.apiKey || localStorage.getItem(STORAGE_KEY);
+    if (!workerURL || !key) {
+      fb.className = 'key-error';
+      fb.textContent = 'Set Worker URL and API key first.';
+      return;
+    }
+
+    try {
+      const res = await fetch(workerURL.replace(/\/+$/, '') + '/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+        body: JSON.stringify({ item }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '' + res.status);
+      }
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      fb.className = 'key-error';
+      fb.textContent = 'Checkout failed: ' + err.message;
+    }
   }
 
   async function callGemma(messages, { signal } = {}) {
@@ -558,22 +632,22 @@ window.addEventListener('unhandledrejection', function(e) {
       throw new Error('No API key and no free generations left. Add a key in Settings.');
     }
 
-    if (CONFIG.isProxyMode && (CONFIG.workerURL || CONFIG.proxyEndpoint)) {
+    if (CONFIG.isProxyMode && CONFIG.proxyEndpoint) {
       const userMsg = messages.find(m => m.role === 'user');
-      const proxyBase = (CONFIG.workerURL || CONFIG.proxyEndpoint || '').replace(/\/+$/, '');
       const payload = { prompt: userMsg?.content || '', model: CONFIG.model };
-      const res = await fetch(proxyBase + '/api/generate', {
+      const res = await fetch(CONFIG.proxyEndpoint.replace(/\/+$/, '') + '/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': CONFIG.apiKey },
         body: JSON.stringify(payload),
         signal: signal,
       });
-      if (res.status === 402) {
-        const errBody = await res.json();
-        throw new Error('Insufficient credits — balance: ' + (errBody.balance || 0) + '. Purchase more in Settings.');
-      }
       if (!res.ok) {
         const errBody = await res.text();
+        if (res.status === 402) {
+          showKeyModal();
+          setTimeout(refreshCreditStatus, 100);
+          throw new Error('Insufficient credits. Buy a pack in Settings to keep generating.');
+        }
         throw new Error('Proxy: ' + res.status + ' ' + errBody);
       }
       return res.json();
@@ -891,28 +965,6 @@ window.addEventListener('unhandledrejection', function(e) {
     }
   });
 
-  function startOAuth(provider) {
-    const base = (CONFIG.workerURL || '').replace(/\/+$/, '');
-    if (!base) {
-      addMessage('Set your Worker URL in Settings first (the API button).', 'error');
-      return;
-    }
-    const appUrl = encodeURIComponent(window.location.href.split('?')[0]);
-    window.location.href = base + '/api/auth/' + provider + '?redirect=' + appUrl;
-  }
-
-  function handleAuthRedirect() {
-    const params = new URLSearchParams(window.location.search);
-    const authKey = params.get('auth');
-    if (authKey && authKey.startsWith('wek_')) {
-      saveApiKey(authKey);
-      const url = new URL(window.location.href);
-      url.searchParams.delete('auth');
-      window.history.replaceState({}, '', url.toString());
-      addMessage('Authenticated via ' + (params.get('provider') || 'OAuth') + '. You\'re signed in!', 'assistant');
-    }
-  }
-
   document.addEventListener('DOMContentLoaded', () => {
     const desktopBtn = document.getElementById('sendDesktopBtn');
     if (desktopBtn) {
@@ -1021,7 +1073,25 @@ window.addEventListener('unhandledrejection', function(e) {
       if (e.key === 'Enter') validateBtn.click();
     });
 
-    handleAuthRedirect();
+    const buyTest = document.getElementById('buyTestBtn');
+    if (buyTest) buyTest.addEventListener('click', () => buyCredits('pack_test'));
+    const buySmall = document.getElementById('buySmallBtn');
+    if (buySmall) buySmall.addEventListener('click', () => buyCredits('pack_small'));
+    const buyLarge = document.getElementById('buyLargeBtn');
+    if (buyLarge) buyLarge.addEventListener('click', () => buyCredits('pack_large'));
+    const subBtn = document.getElementById('subProBtn');
+    if (subBtn) subBtn.addEventListener('click', () => buyCredits('sub_pro'));
+
+    const pricingFree = document.getElementById('pricingFreeBtn');
+    if (pricingFree) pricingFree.addEventListener('click', () => { hideKeyModal(); switchView('view-app'); dom.promptInput?.focus(); });
+    const pricingSmall = document.getElementById('pricingSmallBtn');
+    if (pricingSmall) pricingSmall.addEventListener('click', () => buyCredits('pack_small'));
+    const pricingPro = document.getElementById('pricingProBtn');
+    if (pricingPro) pricingPro.addEventListener('click', () => buyCredits('sub_pro'));
+
+    if (window.location.search.includes('checkout=success')) {
+      setTimeout(() => { showKeyModal(); refreshCreditStatus(); }, 500);
+    }
 
     if (loadApiKey()) {
       updateStatus('connected');
@@ -1081,7 +1151,6 @@ window.addEventListener('unhandledrejection', function(e) {
       removeUserSkill(id);
       renderLibrary('', document.getElementById('librarySearch')?.value || '');
     },
-    startOAuth: (provider) => startOAuth(provider),
     getLastResult: () => lastResult,
     getModels: () => MODELS,
     getSkills: () => Object.keys(SKILLS),
