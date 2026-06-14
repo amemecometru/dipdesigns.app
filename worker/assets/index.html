@@ -75,6 +75,10 @@
       transition: all 0.3s var(--transition); font-size: 14px; font-family: 'Space Mono', monospace;
     }
     header .settings-btn:hover { border-color: var(--copper-raw); color: var(--copper-raw); }
+    header .auth-cluster { display: flex; gap: 6px; align-items: center; }
+    header .auth-btn { border-color: var(--patina-primary); color: var(--patina-primary); font-weight: 700; }
+    header .auth-btn:hover { background: var(--patina-primary); color: var(--base-dark); border-color: var(--patina-primary); }
+    header .signed-in-pill { display: none; align-items: center; gap: 4px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--patina-primary); border: 1px solid var(--patina-dark); border-radius: 6px; padding: 4px 10px; white-space: nowrap; }
 
     /* VIEWS */
     .view { display: none; flex: 1; }
@@ -422,6 +426,11 @@
     <div class="status">
       <span class="dot" id="statusDot"></span> <span id="statusText">Ready</span>
     </div>
+    <div class="auth-cluster" id="authCluster">
+      <button class="settings-btn auth-btn" id="signinGithubBtn" title="Sign in with GitHub">&#9733; GitHub</button>
+      <button class="settings-btn auth-btn" id="signinGoogleBtn" title="Sign in with Google">Google</button>
+    </div>
+    <span class="signed-in-pill" id="signedInPill" title="You're signed in">&#10003; Connected</span>
     <button class="settings-btn" id="settingsBtn" title="API Key">API</button>
     <button class="settings-btn" id="configBtn" title="Settings" style="border:none;font-size:16px;padding:4px 8px;">&#9881;</button>
   </header>

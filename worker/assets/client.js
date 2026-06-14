@@ -232,7 +232,8 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     setFreeRemaining(0);
     if (key.startsWith('wek_')) {
       CONFIG.isProxyMode = true;
-      CONFIG.proxyEndpoint = localStorage.getItem('webhooks_email_proxy') || '';
+      // The Worker owns /api/generate, so default the proxy target to the Worker.
+      CONFIG.proxyEndpoint = localStorage.getItem('webhooks_email_proxy') || workerBase();
       showModelSelector(true);
     } else {
       CONFIG.isProxyMode = false;
@@ -240,6 +241,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
       showModelSelector(false);
     }
     updateStatus('connected');
+    refreshAuthUI();
   }
 
   function clearApiKey() {
@@ -249,6 +251,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     localStorage.removeItem(STORAGE_KEY);
     showModelSelector(false);
     updateStatus('disconnected');
+    refreshAuthUI();
   }
 
   function setModel(modelId) {
@@ -367,6 +370,61 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     } else {
       localStorage.removeItem('webhooks_email_proxy');
     }
+  }
+
+  // ---------- Worker URL auto-detect + OAuth (GitHub / Google) ----------
+  function detectWorkerURL() {
+    const saved = (localStorage.getItem('webhooks_email_worker') || '').replace(/\/+$/, '');
+    if (saved) return saved;
+    const origin = window.location.origin || '';
+    // In production the Worker serves this page, so same-origin IS the Worker.
+    // Fall back to the configured default for local dev (file://, localhost).
+    if (/^https?:\/\//.test(origin) && !/(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(origin)) {
+      return origin.replace(/\/+$/, '');
+    }
+    return (CONFIG.workerURL || '').replace(/\/+$/, '');
+  }
+
+  function workerBase() {
+    return (CONFIG.workerURL || detectWorkerURL() || '').replace(/\/+$/, '');
+  }
+
+  function startOAuth(provider) {
+    const base = workerBase();
+    if (!base) {
+      addMessage('No Worker URL configured for sign-in. Set it in Settings → Device Sync.', 'error');
+      showKeyModal();
+      return;
+    }
+    const back = window.location.origin + window.location.pathname;
+    window.location.href = base + '/api/auth/' + provider + '?redirect=' + encodeURIComponent(back);
+  }
+
+  function handleAuthRedirect() {
+    const params = new URLSearchParams(window.location.search);
+    const authKey = params.get('auth');
+    if (authKey && authKey.startsWith('wek_')) {
+      saveApiKey(authKey);
+      try { populateModelSelector(); } catch (e) {}
+      // Strip ?auth= from the URL so the key isn't left in history/referrer.
+      params.delete('auth');
+      const qs = params.toString();
+      const clean = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+      window.history.replaceState({}, document.title, clean);
+      refreshAuthUI();
+      switchView('app');
+      addMessage('✓ Signed in — you’re connected. Start generating.', 'assistant');
+      return true;
+    }
+    return false;
+  }
+
+  function refreshAuthUI() {
+    const cluster = document.getElementById('authCluster');
+    const pill = document.getElementById('signedInPill');
+    const connected = !!CONFIG.apiKey;
+    if (cluster) cluster.style.display = connected ? 'none' : 'flex';
+    if (pill) pill.style.display = connected ? 'inline-flex' : 'none';
   }
 
   function setDesktopIP(ip) {
@@ -643,6 +701,14 @@ window.addEventListener('unhandledrejection', function(e) {
       });
       if (!res.ok) {
         const errBody = await res.text();
+        if (res.status === 401) {
+          // Key was issued under the old (insecure) scheme and is no longer valid,
+          // or was revoked. Clear it — clearApiKey() re-surfaces the top-bar sign-in —
+          // and tell the user to re-authenticate, so the key migration is seamless.
+          clearApiKey();
+          addMessage('Your session expired — sign in again with GitHub or Google (top bar) to keep generating.', 'error');
+          throw new Error('Session expired — please sign in again.');
+        }
         if (res.status === 402) {
           showKeyModal();
           setTimeout(refreshCreditStatus, 100);
@@ -1089,21 +1155,37 @@ window.addEventListener('unhandledrejection', function(e) {
     const pricingPro = document.getElementById('pricingProBtn');
     if (pricingPro) pricingPro.addEventListener('click', () => buyCredits('sub_pro'));
 
+    // Header sign-in buttons (GitHub / Google) — surfaced in the top bar.
+    const ghBtn = document.getElementById('signinGithubBtn');
+    if (ghBtn) ghBtn.addEventListener('click', () => startOAuth('github'));
+    const goBtn = document.getElementById('signinGoogleBtn');
+    if (goBtn) goBtn.addEventListener('click', () => startOAuth('google'));
+
     if (window.location.search.includes('checkout=success')) {
       setTimeout(() => { showKeyModal(); refreshCreditStatus(); }, 500);
     }
 
-    if (loadApiKey()) {
+    // Worker URL: prefer a saved value, else auto-detect (the Worker serves this page).
+    const savedWorker = localStorage.getItem('webhooks_email_worker');
+    if (savedWorker) {
+      setWorkerURL(savedWorker);
+    } else {
+      CONFIG.workerURL = detectWorkerURL();
+      connectStream();
+    }
+
+    // OAuth return (?auth=wek_...): capture the key before the normal key load.
+    const cameFromOAuth = handleAuthRedirect();
+    if (!cameFromOAuth && loadApiKey()) {
       updateStatus('connected');
     }
 
-    const savedWorker = localStorage.getItem('webhooks_email_worker');
-    if (savedWorker) setWorkerURL(savedWorker);
     const savedDesktopKey = localStorage.getItem('webhooks_email_desktop_key');
     if (savedDesktopKey) desktopKey = savedDesktopKey;
     const savedIp = localStorage.getItem('webhooks_email_desktop_ip');
     if (savedIp) setDesktopIP(savedIp);
     refreshFreeStatus();
+    refreshAuthUI();
   });
 
   window.WebhooksEmail = {
@@ -1111,6 +1193,7 @@ window.addEventListener('unhandledrejection', function(e) {
     setBaseURL,
     setProxyEndpoint,
     setWorkerURL,
+    startOAuth,
     setDesktopIP,
     setDesktopKey,
     setFreeRemaining,

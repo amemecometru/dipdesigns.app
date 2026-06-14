@@ -69,6 +69,45 @@ function getLedger(principal, env) {
   return env.CREDIT_LEDGER.get(doId);
 }
 
+// ---- Account keys (random secret, NOT derived from the email) ----
+function randomToken(bytes = 32) {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Issue (or fetch the existing) per-account record. The wek_ key is a RANDOM
+// secret — it is NOT a function of the email, so it can't be computed by
+// anyone who knows the address. A reverse index (wek:<principal>) lets the
+// spend paths confirm a presented key was actually issued by us.
+async function issueOrGetUser(env, email, provider) {
+  const e = (email || '').toLowerCase().trim();
+  if (env.WEBHOOKS_KV) {
+    const existing = await env.WEBHOOKS_KV.get('user:email:' + e, 'json');
+    if (existing && existing.wekKey) return existing;
+  }
+  const wekKey = 'wek_' + randomToken(32);
+  const principal = await generatePrincipalHash(wekKey);
+  const record = { email: e, provider, wekKey, principal, createdAt: Date.now() };
+  if (env.WEBHOOKS_KV) {
+    await env.WEBHOOKS_KV.put('user:email:' + e, JSON.stringify(record));
+    await env.WEBHOOKS_KV.put('wek:' + principal, JSON.stringify({ email: e, provider, createdAt: record.createdAt }));
+  }
+  return record;
+}
+
+// Resolve a presented wek_ key to its ledger principal, or null if it was not
+// issued by us. Falls back to the raw hash only when KV is unavailable
+// (local dev with no bound namespace).
+async function principalFromWekKey(env, wekKey) {
+  const principal = await generatePrincipalHash(wekKey);
+  if (env.WEBHOOKS_KV) {
+    const rec = await env.WEBHOOKS_KV.get('wek:' + principal, 'json');
+    return rec ? principal : null;
+  }
+  return principal;
+}
+
 async function verifyStripeSignature(rawBody, sigHeader, secret) {
   if (!sigHeader || !secret) return null;
   try {
@@ -176,7 +215,12 @@ async function proxyOpenRouter(request, cors, env) {
     let isWekKey = false;
 
     if (xApiKey.startsWith('wek_')) {
-      principal = await generatePrincipalHash(xApiKey);
+      principal = await principalFromWekKey(env, xApiKey);
+      if (!principal) {
+        return new Response(JSON.stringify({ error: 'Unauthorized: unknown or revoked key — sign in again.' }), {
+          status: 401, headers: { 'Content-Type': 'application/json', ...cors },
+        });
+      }
       isWekKey = true;
     } else if (xProxyKey && env.PROXY_SECRET && xProxyKey === env.PROXY_SECRET) {
       principal = request.headers.get('x-principal') || '';
@@ -265,7 +309,7 @@ async function handleCheckout(request, cors, env) {
     let principal = body.principal || request.headers.get('x-principal') || '';
     const apiKey = request.headers.get('x-api-key') || request.headers.get('x-proxy-key') || '';
     if (!principal && apiKey.startsWith('wek_')) {
-      principal = await generatePrincipalHash(apiKey);
+      principal = await principalFromWekKey(env, apiKey);
     }
 
     if (!item || !CONFIG.PRICE_IDS[item]) {
@@ -488,16 +532,11 @@ async function handleOAuth(request, url, env) {
 
     if (!email) return new Response('Could not retrieve email from ' + provider, { status: 502, headers: cors });
 
-    const principal = await generatePrincipalHash('email:' + email.toLowerCase().trim());
-
-    if (env.WEBHOOKS_KV) {
-      const existing = await env.WEBHOOKS_KV.get('email_principal:' + email.toLowerCase().trim(), 'json');
-      if (!existing) {
-        await env.WEBHOOKS_KV.put('email_principal:' + email.toLowerCase().trim(), JSON.stringify({ principal, provider, createdAt: Date.now() }));
-      }
-    }
-
-    const wekKey = 'wek_' + principal.slice(0, 24);
+    // Mint (or reuse) a per-account record with a RANDOM secret key — the key
+    // is no longer derived from the email, so knowing the address tells an
+    // attacker nothing about the key.
+    const user = await issueOrGetUser(env, email, provider);
+    const wekKey = user.wekKey;
     const authRedirect = appRedirect + (appRedirect.includes('?') ? '&' : '?') + 'auth=' + wekKey;
     return Response.redirect(authRedirect, 302);
   } catch (err) {
@@ -511,7 +550,7 @@ async function handleBalance(request, env, cors) {
     const apiKey = request.headers.get('x-api-key') || '';
 
     if (!principal && apiKey.startsWith('wek_')) {
-      principal = await generatePrincipalHash(apiKey);
+      principal = (await principalFromWekKey(env, apiKey)) || '';
     }
 
     if (!principal || !env.CREDIT_LEDGER) {
