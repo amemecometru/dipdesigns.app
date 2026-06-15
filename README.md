@@ -1,8 +1,8 @@
-# webhooks.email — Cross-Platform Flash UI
+# LogiclemonAI — Cross-Platform AI-Design-Studio
 
-**Vibe-code anything. Email or webhook a prompt, get a live rendered UI instantly on any device.**
+**Vibe/Text a ui-design on your mobile-android, click-a-button & now it's waiting at your desk via webhook. A live rendered ui is ready to work on your favorite device.**
 
-webhooks.email is a serverless, client-side Progressive Web App (PWA) that lets you describe a user interface in plain English and have **Gemma 4** (via OpenRouter) generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required.
+LogiclemonAI is a serverless, client-side Progressive Mobile/Web App (PWA) that lets you describe a user interface in plain English and have **Gemma 4 [or model]** (via OpenRouter) generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required. When the design is complete the AI-Design-Assistant will create a "backend-handoff.md" tailored for the "Target-Stack" your stack.
 
 ---
 
@@ -22,7 +22,7 @@ webhooks.email is a serverless, client-side Progressive Web App (PWA) that lets 
 ```
 
 ```
-webhooks.email-new/
+LogiclemonAI/
 ├── index.html           # PWA — cover page + split-pane chat + iframe preview
 ├── client.js            # SkillChain orchestrator, OpenRouter calls, SSE consumer, key mgmt, library
 ├── manifest.json        # PWA manifest for Android install
