@@ -1,12 +1,13 @@
 import { CreditLedger } from './credit-ledger.js';
 export { CreditLedger };
+import { serveAsset } from './assets-inline.js';
 
 const CONFIG = {
   OPENROUTER_API_KEY: typeof OPENROUTER_API_KEY !== 'undefined' ? OPENROUTER_API_KEY : '',
   OPENROUTER_BASE: 'https://openrouter.ai/api/v1',
   MODEL: 'google/gemma-4-26b-a4b-it:free',
   FREE_MODEL: 'google/gemma-3-12b-it',
-  ALLOWED_ORIGINS: ['https://webhooks.email', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
+  ALLOWED_ORIGINS: ['https://jump.logiclemonai.workers.dev', 'https://webhooks.email', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
   STRIPE_API: 'https://api.stripe.com/v1',
   PRICE_IDS: {
     pack_small: 'price_1ThKvDQyNHJ9tQdyQyIPLBXj',
@@ -185,8 +186,8 @@ async function callOpenRouter(prompt, systemPrompt, model, env) {
     headers: {
       'Authorization': 'Bearer ' + (env.OPENROUTER_API_KEY || CONFIG.OPENROUTER_API_KEY),
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://webhooks.email',
-      'X-Title': 'webhooks.email',
+      'HTTP-Referer': 'https://jump.logiclemonai.workers.dev',
+      'X-Title': 'LogicLemonAI - Jump',
     },
     body: JSON.stringify({
       model: model || CONFIG.MODEL,
@@ -763,6 +764,16 @@ export default {
       return handleState(request, env, cors);
     }
 
+    // Serve static assets (PWA files, manifest, CSS, JS, landing/signin pages)
+    // Route mapping: root = landing, /studio = studio, everything else = asset
+    let assetPath = url.pathname;
+    if (assetPath === '/' || assetPath === '') {
+      assetPath = '/landing.html';
+    } else if (assetPath === '/studio') {
+      assetPath = '/index.html';
+    }
+    const assetResponse = await serveAsset(assetPath);
+    if (assetResponse) return assetResponse;
     return new Response('Not found', { status: 404 });
   },
 };
