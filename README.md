@@ -1,8 +1,8 @@
 # LogiclemonAI — Cross-Platform AI-Design-Studio
 
-Vibe/Text a ui-design on your mobile-android, click-a-button & now it's waiting at your desk via webhook. A live rendered ui is ready to work on your favorite device.
+Vibe/Text a ui-design on your Mobile-Android, click-a-button & the new design jumps cross-platform with a backend-handoff.md file ready for a full-stack build. View the live ui, its ready on your favorite device.
 
-LogiclemonAI is a serverless, client-side Progressive Mobile/Web App (PWA) that lets you describe a user interface in plain English and have Gemma 4 [or model] (via OpenRouter) generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required. When the design is complete the AI-Design-Assistant will create a "backend-handoff.md" tailored for the "Target-Stack" — your stack.
+LogiclemonAI is a serverless, client-side Progressive Mobile/Web App (PWA) that lets you describe a user interface in plain English by Vibe/Text -> Gemma-4-e2b-ai-edge [model-catalog] [via OpenRouter] generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required. When the design is complete the AI-Design-Assistant will create a "backend-handoff.md" tailored for the "Target-Stack" — your stack.
 
 ## Architecture
 
@@ -23,12 +23,12 @@ LogiclemonAI is a serverless, client-side Progressive Mobile/Web App (PWA) that 
 ```
 LogiclemonAI/
 ├── README.md
-├── receiver.js              # Desktop webhook listener (port 3000) — writes pushed UIs to disk
+├── receiver.js              # Desktop Listener (port 3000) — writes pushed UIs to disk
 ├── backend/
 │   ├── main.py              # FastAPI — identity only: signup + validate-key
 │   └── requirements.txt
 ├── ingress/
-│   ├── webhook_handler.py   # External webhook → Gemma → forward to desktop
+│   ├── handler.py           # External handler → Gemma → forward to desktop
 │   └── requirements.txt
 └── worker/                  # the deployed app (Cloudflare)
     ├── index.js             # Worker: /api/* (OAuth, generate, webhook, Stripe, SSE bus) + Durable Objects
