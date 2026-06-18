@@ -210,6 +210,9 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     if (viewId === 'library') {
       setTimeout(() => renderLibrary('', ''), 50);
     }
+    if (viewId === 'pricing') {
+      setTimeout(() => refreshPricingCreditBar(), 50);
+    }
   }
 
   function showAddSkill() {
@@ -661,6 +664,33 @@ window.addEventListener('unhandledrejection', function(e) {
     if (window.location.search.includes('checkout=success')) {
       if (fb) { fb.className = 'key-success'; fb.textContent = 'Purchase complete! Refreshing balance...'; }
       setTimeout(refreshCreditStatus, 2000);
+    }
+  }
+
+  async function refreshPricingCreditBar() {
+    const bar = document.getElementById('pricingCreditBar');
+    const text = document.getElementById('pricingCreditText');
+    if (!bar || !text) return;
+    const workerURL = CONFIG.workerURL || localStorage.getItem('webhooks_email_worker');
+    const key = CONFIG.apiKey || localStorage.getItem(STORAGE_KEY);
+    if (!workerURL || !key || !key.startsWith('wek_')) {
+      bar.style.display = 'none';
+      return;
+    }
+    try {
+      const res = await fetch(workerURL.replace(/\\/+$/, '') + '/api/balance', {
+        headers: { 'x-api-key': key },
+      });
+      if (!res.ok) throw new Error('' + res.status);
+      const data = await res.json();
+      const parts = [];
+      if (data.balance > 0) parts.push(data.balance + ' credits');
+      if (data.subscription?.status === 'active') parts.push('Pro active');
+      if (data.free?.remaining > 0) parts.push(data.free.remaining + ' free/day');
+      text.textContent = parts.length ? 'Current: ' + parts.join(' · ') : 'No credits yet — choose a plan below.';
+      bar.style.display = 'block';
+    } catch (err) {
+      bar.style.display = 'none';
     }
   }
 
@@ -1356,10 +1386,15 @@ window.addEventListener('unhandledrejection', function(e) {
 
     const pricingFree = document.getElementById('pricingFreeBtn');
     if (pricingFree) pricingFree.addEventListener('click', () => { hideKeyModal(); switchView('view-app'); dom.promptInput?.focus(); });
+    const pricingTest = document.getElementById('pricingTestBtn');
+    if (pricingTest) pricingTest.addEventListener('click', () => buyCredits('pack_test'));
     const pricingSmall = document.getElementById('pricingSmallBtn');
     if (pricingSmall) pricingSmall.addEventListener('click', () => buyCredits('pack_small'));
     const pricingPro = document.getElementById('pricingProBtn');
     if (pricingPro) pricingPro.addEventListener('click', () => buyCredits('sub_pro'));
+
+    // Load credit balance into the pricing page bar
+    refreshPricingCreditBar();
 
     // Header sign-in buttons (GitHub / Google) — surfaced in the top bar.
     const ghBtn = document.getElementById('signinGithubBtn');
@@ -2530,9 +2565,8 @@ ASSETS["index.html"] = {
     .preview-controls{right:8px;bottom:8px;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
     .pod-trigger,.zoom-step,.zoom-val{padding:5px 8px;font-size:10px;}
     .handoff-trigger{left:8px;bottom:8px;font-size:10px;padding:5px 8px;}
-    /* mobile pill overlap fix: stack vertically, left-aligned, keep right clear */
-    .preview-controls{right:8px;left:8px;bottom:8px;width:auto;justify-content:flex-start;flex-wrap:wrap;gap:4px;}
-    .handoff-trigger{left:8px;bottom:52px;}
+    /* mobile: handoff at top-left so bottom controls have full width */
+    .handoff-trigger{left:8px;top:8px;bottom:auto;font-size:10px;padding:5px 8px;}
   }
   </style>
 <style>
@@ -2550,13 +2584,14 @@ ASSETS["index.html"] = {
       <div class="brand">
         <span class="badge glz-surface-metal"><span class="glz-node-dot"></span></span>
         <h1>LogicLemon<span>AI</span></h1>
-        <nav>
+        <nav id="headerNav">
           <button class="active" data-view="app">Studio</button>
           <button data-view="library">Library</button>
           <button data-view="pricing">Pricing</button>
           <button data-view="docs">Docs</button>
           <a href="/inspiration.html" target="_blank" style="text-decoration:none;"><button style="background:none;border:none;color:var(--ink-on-dark-dim);font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:color var(--t-fast);font-family:var(--font-ui);" onmouseover="this.style.color='var(--teal)'" onmouseout="this.style.color='var(--ink-on-dark-dim)'">Inspiration</button></a>
           <a href="/dashboard.html" target="_blank" style="text-decoration:none;"><button style="background:none;border:none;color:var(--ink-on-dark-dim);font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:color var(--t-fast);font-family:var(--font-ui);" onmouseover="this.style.color='var(--teal)'" onmouseout="this.style.color='var(--ink-on-dark-dim)'">Dashboard</button></a>
+          <a href="/signin.html" style="text-decoration:none;"><button class="mobile-signin" style="background:none;border:none;color:var(--teal);font-size:13px;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:var(--font-ui);font-weight:600;">Sign in</button></a>
         </nav>
       </div>
       <div class="status"><span class="dot" id="statusDot"></span> <span id="statusText">Ready</span></div>
@@ -2670,24 +2705,64 @@ ASSETS["index.html"] = {
       <div class="page">
         <span class="section-tag">PLANS</span>
         <h2>Simple, transparent pricing</h2>
-        <p class="subtitle">Start free. Pay only when you need persistence, sync, and the full library.</p>
-        <div class="pricing-grid">
-          <div class="pricing-card">
-            <h3>FREE</h3><div class="price">$0<span>/mo</span></div>
-            <ul><li>Text-to-UI generation</li><li>Sandboxed live preview</li><li>Skills Library (basic)</li><li>3 free generations/day</li></ul>
-            <button class="cta-btn secondary" id="pricingFreeBtn">Try Free</button>
+        <p class="subtitle">Start free. Upgrade when you need more power.</p>
+
+        <div id="pricingCreditBar" style="display:none;max-width:480px;margin:0 auto 28px;text-align:center;padding:14px 18px;border-radius:14px;background:var(--glazier-glass-2);border:1px solid var(--line-dark);font-family:var(--font-mono);font-size:13px;color:var(--ink-on-dark-dim);">
+          <span id="pricingCreditText">Loading balance...</span>
+        </div>
+
+        <div class="pricing-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;max-width:900px;margin:0 auto;">
+          <div class="pricing-card" style="padding:22px;border-radius:var(--r-lg);border:1px solid var(--line-dark);background:var(--bg-raise);display:flex;flex-direction:column;gap:10px;">
+            <h3 style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--metal-2);margin:0;">FREE</h3>
+            <div class="price" style="font-size:32px;font-weight:800;color:var(--ink-on-dark);margin:4px 0;">$0</div>
+            <ul style="list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-on-dark-dim);line-height:1.7;flex:1;">
+              <li>3 AI generations / day</li>
+              <li>Live sandbox preview</li>
+              <li>Skills Library</li>
+              <li>Mobile + Desktop</li>
+            </ul>
+            <button class="cta-btn secondary" id="pricingFreeBtn" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--line-dark);background:transparent;color:var(--ink-on-dark);font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;">Get Started</button>
           </div>
-          <div class="pricing-card featured">
-            <h3>CREDITS</h3><div class="price">$5<span> — 10 credits</span></div>
-            <ul><li>Full SkillChain generation</li><li>Backend blueprint export</li><li>Desktop sync (Send to IDE)</li><li>Webhook ingress</li><li>7 edge models</li></ul>
-            <button class="cta-btn" id="pricingSmallBtn">Buy Credits</button>
+
+          <div class="pricing-card" style="padding:22px;border-radius:var(--r-lg);border:1px solid var(--teal-soft);background:var(--bg-raise);display:flex;flex-direction:column;gap:10px;position:relative;">
+            <div style="position:absolute;top:-1px;right:16px;background:var(--teal);color:#04201d;font-size:11px;font-weight:700;padding:4px 10px;border-radius:0 0 8px 8px;font-family:var(--font-mono);letter-spacing:.5px;">POPULAR</div>
+            <h3 style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--metal-2);margin:0;">STARTER</h3>
+            <div class="price" style="font-size:32px;font-weight:800;color:var(--ink-on-dark);margin:4px 0;">$3<span style="font-size:14px;font-weight:400;color:var(--ink-on-dark-dim);"> — 3 credits</span></div>
+            <ul style="list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-on-dark-dim);line-height:1.7;flex:1;">
+              <li>Everything in Free</li>
+              <li>Backend blueprint export</li>
+              <li>Desktop sync</li>
+              <li>Target stack handoff</li>
+            </ul>
+            <button class="cta-btn" id="pricingTestBtn" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--teal-bright),var(--teal));color:#04201d;font-family:var(--font-ui);font-weight:700;cursor:pointer;transition:all .15s;">Buy Starter</button>
           </div>
-          <div class="pricing-card">
-            <h3>PRO</h3><div class="price">$12<span>/mo</span></div>
-            <ul><li>100 credits/month</li><li>Everything in Credits</li><li>Unlimited webhook ingress</li><li>Priority routing</li><li>API access</li></ul>
-            <button class="cta-btn secondary" id="pricingProBtn">Subscribe</button>
+
+          <div class="pricing-card" style="padding:22px;border-radius:var(--r-lg);border:1px solid var(--line-dark);background:var(--bg-raise);display:flex;flex-direction:column;gap:10px;">
+            <h3 style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--metal-2);margin:0;">CREDITS</h3>
+            <div class="price" style="font-size:32px;font-weight:800;color:var(--ink-on-dark);margin:4px 0;">$5<span style="font-size:14px;font-weight:400;color:var(--ink-on-dark-dim);"> — 10 credits</span></div>
+            <ul style="list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-on-dark-dim);line-height:1.7;flex:1;">
+              <li>Everything in Starter</li>
+              <li>Full SkillChain generation</li>
+              <li>Webhook ingress</li>
+              <li>7 edge models</li>
+            </ul>
+            <button class="cta-btn" id="pricingSmallBtn" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--teal-bright),var(--teal));color:#04201d;font-family:var(--font-ui);font-weight:700;cursor:pointer;transition:all .15s;">Buy Credits</button>
+          </div>
+
+          <div class="pricing-card" style="padding:22px;border-radius:var(--r-lg);border:1px solid var(--amber-soft);background:var(--bg-raise);display:flex;flex-direction:column;gap:10px;">
+            <h3 style="font-size:14px;letter-spacing:2px;font-weight:700;color:var(--amber);margin:0;">PRO</h3>
+            <div class="price" style="font-size:32px;font-weight:800;color:var(--ink-on-dark);margin:4px 0;">$12<span style="font-size:14px;font-weight:400;color:var(--ink-on-dark-dim);">/mo</span></div>
+            <ul style="list-style:none;padding:0;margin:0;font-size:13px;color:var(--ink-on-dark-dim);line-height:1.7;flex:1;">
+              <li>100 credits / month</li>
+              <li>Unlimited webhook ingress</li>
+              <li>Priority routing</li>
+              <li>API access</li>
+            </ul>
+            <button class="cta-btn secondary" id="pricingProBtn" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:1px solid var(--amber-soft);background:transparent;color:var(--amber);font-family:var(--font-ui);font-weight:600;cursor:pointer;transition:all .15s;">Subscribe</button>
           </div>
         </div>
+
+        <p style="text-align:center;margin-top:28px;font-size:12px;color:var(--ink-on-dark-dim);font-family:var(--font-mono);">Secure payments via Stripe. No refunds, no lock-in. Cancel Pro anytime.</p>
       </div>
     </div>
 

@@ -205,6 +205,9 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     if (viewId === 'library') {
       setTimeout(() => renderLibrary('', ''), 50);
     }
+    if (viewId === 'pricing') {
+      setTimeout(() => refreshPricingCreditBar(), 50);
+    }
   }
 
   function showAddSkill() {
@@ -656,6 +659,33 @@ window.addEventListener('unhandledrejection', function(e) {
     if (window.location.search.includes('checkout=success')) {
       if (fb) { fb.className = 'key-success'; fb.textContent = 'Purchase complete! Refreshing balance...'; }
       setTimeout(refreshCreditStatus, 2000);
+    }
+  }
+
+  async function refreshPricingCreditBar() {
+    const bar = document.getElementById('pricingCreditBar');
+    const text = document.getElementById('pricingCreditText');
+    if (!bar || !text) return;
+    const workerURL = CONFIG.workerURL || localStorage.getItem('webhooks_email_worker');
+    const key = CONFIG.apiKey || localStorage.getItem(STORAGE_KEY);
+    if (!workerURL || !key || !key.startsWith('wek_')) {
+      bar.style.display = 'none';
+      return;
+    }
+    try {
+      const res = await fetch(workerURL.replace(/\/+$/, '') + '/api/balance', {
+        headers: { 'x-api-key': key },
+      });
+      if (!res.ok) throw new Error('' + res.status);
+      const data = await res.json();
+      const parts = [];
+      if (data.balance > 0) parts.push(data.balance + ' credits');
+      if (data.subscription?.status === 'active') parts.push('Pro active');
+      if (data.free?.remaining > 0) parts.push(data.free.remaining + ' free/day');
+      text.textContent = parts.length ? 'Current: ' + parts.join(' · ') : 'No credits yet — choose a plan below.';
+      bar.style.display = 'block';
+    } catch (err) {
+      bar.style.display = 'none';
     }
   }
 
@@ -1351,10 +1381,15 @@ window.addEventListener('unhandledrejection', function(e) {
 
     const pricingFree = document.getElementById('pricingFreeBtn');
     if (pricingFree) pricingFree.addEventListener('click', () => { hideKeyModal(); switchView('view-app'); dom.promptInput?.focus(); });
+    const pricingTest = document.getElementById('pricingTestBtn');
+    if (pricingTest) pricingTest.addEventListener('click', () => buyCredits('pack_test'));
     const pricingSmall = document.getElementById('pricingSmallBtn');
     if (pricingSmall) pricingSmall.addEventListener('click', () => buyCredits('pack_small'));
     const pricingPro = document.getElementById('pricingProBtn');
     if (pricingPro) pricingPro.addEventListener('click', () => buyCredits('sub_pro'));
+
+    // Load credit balance into the pricing page bar
+    refreshPricingCreditBar();
 
     // Header sign-in buttons (GitHub / Google) — surfaced in the top bar.
     const ghBtn = document.getElementById('signinGithubBtn');
