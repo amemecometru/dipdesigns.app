@@ -70,17 +70,12 @@ function getLedger(principal, env) {
   return env.CREDIT_LEDGER.get(doId);
 }
 
-// ---- Account keys (random secret, NOT derived from the email) ----
 function randomToken(bytes = 32) {
   const arr = new Uint8Array(bytes);
   crypto.getRandomValues(arr);
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Issue (or fetch the existing) per-account record. The wek_ key is a RANDOM
-// secret — it is NOT a function of the email, so it can't be computed by
-// anyone who knows the address. A reverse index (wek:<principal>) lets the
-// spend paths confirm a presented key was actually issued by us.
 async function issueOrGetUser(env, email, provider) {
   const e = (email || '').toLowerCase().trim();
   if (env.WEBHOOKS_KV) {
@@ -97,9 +92,6 @@ async function issueOrGetUser(env, email, provider) {
   return record;
 }
 
-// Resolve a presented wek_ key to its ledger principal, or null if it was not
-// issued by us. Falls back to the raw hash only when KV is unavailable
-// (local dev with no bound namespace).
 async function principalFromWekKey(env, wekKey) {
   const principal = await generatePrincipalHash(wekKey);
   if (env.WEBHOOKS_KV) {
@@ -533,9 +525,6 @@ async function handleOAuth(request, url, env) {
 
     if (!email) return new Response('Could not retrieve email from ' + provider, { status: 502, headers: cors });
 
-    // Mint (or reuse) a per-account record with a RANDOM secret key — the key
-    // is no longer derived from the email, so knowing the address tells an
-    // attacker nothing about the key.
     const user = await issueOrGetUser(env, email, provider);
     const wekKey = user.wekKey;
     const authRedirect = appRedirect + (appRedirect.includes('?') ? '&' : '?') + 'auth=' + wekKey;
@@ -636,10 +625,8 @@ async function handleStream(request, env) {
   const doId = env.SESSION_HUB.idFromName(sessionId);
   const stub = env.SESSION_HUB.get(doId);
 
-  // Forward the request to the DO — it handles SSE
   const doResponse = await stub.fetch(request);
 
-  // Return the SSE stream response with CORS
   const headers = new Headers(doResponse.headers);
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -719,7 +706,7 @@ export default {
       return new Response(null, { status: 204, headers: cors });
     }
 
-    if (url.pathname.startsWith('/api/') && url.pathname !== '/api/stripe-webhook') {
+    if (url.pathname.startsWith('/api/') && url.pathname !== '/api/stripe-webhook' && url.pathname !== '/api/health') {
       if (isBotRequest(request)) {
         return new Response('Forbidden', { status: 403 });
       }
@@ -764,8 +751,6 @@ export default {
       return handleState(request, env, cors);
     }
 
-    // Serve static assets (PWA files, manifest, CSS, JS, landing/signin pages)
-    // Route mapping: root = landing, /studio = studio, everything else = asset
     let assetPath = url.pathname;
     if (assetPath === '/' || assetPath === '') {
       assetPath = '/landing.html';
