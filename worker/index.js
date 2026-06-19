@@ -7,7 +7,7 @@ const CONFIG = {
   OPENROUTER_BASE: 'https://openrouter.ai/api/v1',
   MODEL: 'google/gemma-4-26b-a4b-it:free',
   FREE_MODEL: 'google/gemma-3-12b-it',
-  ALLOWED_ORIGINS: ['https://dipdesigns.app', 'https://jump.logiclemonai.workers.dev', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
+  ALLOWED_ORIGINS: ['https://dipdesigns.app', 'https://workers.dipdesigns.app', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
   STRIPE_API: 'https://api.stripe.com/v1',
   PRICE_IDS: {
     pack_small: 'price_1ThKvDQyNHJ9tQdyQyIPLBXj',
@@ -186,8 +186,8 @@ async function callOpenRouter(prompt, systemPrompt, model, env) {
     headers: {
       'Authorization': 'Bearer ' + (env.OPENROUTER_API_KEY || CONFIG.OPENROUTER_API_KEY),
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://jump.logiclemonai.workers.dev',
-      'X-Title': 'LogicLemonAI - Jump',
+      'HTTP-Referer': 'https://workers.dipdesigns.app',
+      'X-Title': 'DipDesigns - Jump',
     },
     body: JSON.stringify({
       model: model || CONFIG.MODEL,
