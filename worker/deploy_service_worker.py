@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy LogiclemonAI worker as a single service worker (no ES modules)."""
+"""Deploy DipDesigns worker as a single service worker (no ES modules)."""
 import json, os, io, uuid, sys, urllib.request, ssl
 
 ACCOUNT_ID = "8a460817bc554362e040644c8e003fb9"
@@ -165,7 +165,7 @@ def set_secret(name, value):
     return result
 
 if __name__ == "__main__":
-    print("=== Deploying LogiclemonAI Worker (Service Worker) ===")
+    print("=== Deploying DipDesigns Worker (Service Worker) ===")
     print(f"Script: {SCRIPT_NAME}")
     print(f"Account: {ACCOUNT_ID}")
 

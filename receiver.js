@@ -8,9 +8,9 @@ const PORT = 3000;
 let API_KEY = process.env.RECEIVER_API_KEY;
 if (!API_KEY) {
   API_KEY = 'wek_' + crypto.randomBytes(18).toString('hex');
-  console.warn('[LogicLemonAI] No RECEIVER_API_KEY set — generated a temporary key for this session:');
-  console.warn('[LogicLemonAI]   ' + API_KEY);
-  console.warn('[LogicLemonAI] In the studio: Settings (gear) → Device Sync → paste this as the "Desktop key".');
+  console.warn('[DipDesigns] No RECEIVER_API_KEY set — generated a temporary key for this session:');
+  console.warn('[DipDesigns]   ' + API_KEY);
+  console.warn('[DipDesigns] In the studio: Settings (gear) → Device Sync → paste this as the "Desktop key".');
 }
 
 const server = http.createServer((req, res) => {
@@ -46,7 +46,7 @@ const server = http.createServer((req, res) => {
       const safeFilename = path.basename(filename);
       const targetPath = path.join(__dirname, safeFilename);
       fs.writeFileSync(targetPath, content, 'utf8');
-      console.log(`[LogicLemonAI] ${new Date().toLocaleTimeString()} — wrote ${safeFilename} (${content.length} bytes)`);
+      console.log(`[DipDesigns] ${new Date().toLocaleTimeString()} — wrote ${safeFilename} (${content.length} bytes)`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, message: `File ${safeFilename} updated.` }));
     } catch (error) {
@@ -57,6 +57,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[LogicLemonAI] Security bridge active on http://0.0.0.0:${PORT}`);
-  console.log('[LogicLemonAI] Awaiting incoming vibe-code payloads from network…');
+  console.log(`[DipDesigns] Security bridge active on http://0.0.0.0:${PORT}`);
+  console.log('[DipDesigns] Awaiting incoming vibe-code payloads from network…');
 });

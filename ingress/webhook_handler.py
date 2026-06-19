@@ -1,5 +1,5 @@
 """
-dipdesigns.app — Ingress Handler
+DipDesigns — Ingress Handler
 Receives external webhooks (email-to-webhook, Cloudflare, etc.),
 processes the payload through Gemma via OpenRouter,
 and returns generated UI code or forwards to the desktop receiver.

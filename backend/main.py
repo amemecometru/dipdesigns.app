@@ -61,7 +61,7 @@ async def signup(req: SignupRequest):
     return SignupResponse(
         user_id=user_id,
         api_key=api_key,
-        message="Welcome to dipdesigns.app! Use your API key in x-api-key header with the Worker."
+        message="Welcome to DipDesigns! Use your API key in x-api-key header with the Worker."
     )
 
 @app.post("/api/validate-key", response_model=ValidateKeyResponse)
