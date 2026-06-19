@@ -3,7 +3,7 @@ import json, urllib.request, urllib.error, base64, os, io, mimetypes
 
 TOKEN = os.environ.get("CF_API_TOKEN", "")
 ACCOUNT_ID = "8a460817bc554362e040644c8e003fb9"
-SCRIPT_NAME = "jump-studio"
+SCRIPT_NAME = "dipdesigns"
 KV_ID = "5b35c96a0bdd418685bfb6ce68884acd"
 
 def read_file(path):
@@ -65,19 +65,17 @@ parts = [
 
 body, ct = build_multipart(parts)
 
-print(f"=== Deploying LogiclemonAI Worker (v8 - with inlined assets) ===")
+print(f"=== Deploying to {SCRIPT_NAME} ===")
+print(f"Token prefix: {TOKEN[:20]}..." if TOKEN else "NO TOKEN SET")
 print(f"Uploading {len(parts)} parts...")
 
 result = api("PUT", f"/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}", data=body, headers={"Content-Type": ct})
 print(json.dumps(result, indent=2))
 
 if result.get("success", False):
-    print("\n✅ Worker deployed with inlined assets!")
+    print(f"\n✅ {SCRIPT_NAME} deployed successfully!")
 else:
-    print("\n❌ Deploy failed.")
+    print(f"\n❌ Deploy to {SCRIPT_NAME} failed.")
     errors = result.get("errors", [])
     for err in errors:
-        msg = err.get("message", "")
-        if "does not export class" in msg and "Durable Objects" in msg:
-            print("\n⚠️ The worker has existing Durable Objects. The new version must export the same class names.")
-            print("This is a migration issue. We may need to rename the script.")
+        print(f"  - {err.get('message', '')}")

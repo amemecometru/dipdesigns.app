@@ -1,5 +1,5 @@
 """
-webhooks.email — Ingress Handler
+dipdesigns.app — Ingress Handler
 Receives external webhooks (email-to-webhook, Cloudflare, etc.),
 processes the payload through Gemma via OpenRouter,
 and returns generated UI code or forwards to the desktop receiver.
@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="webhooks.email Ingress")
+app = FastAPI(title="dipdesigns.app Ingress")
 
 app.add_middleware(
     CORSMiddleware,
@@ -72,8 +72,8 @@ async def call_gemma(prompt: str) -> dict:
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://webhooks.email",
-                "X-Title": "webhooks.email",
+                "HTTP-Referer": "https://dipdesigns.app",
+                "X-Title": "dipdesigns.app",
             },
             json={
                 "model": MODEL,

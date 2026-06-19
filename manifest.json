@@ -1,6 +1,6 @@
 {
-  "name": "webhooks.email",
-  "short_name": "webhooks",
+  "name": "dipdesigns.app",
+  "short_name": "dipdesigns",
   "description": "Vibe-code anything. Email or webhook a prompt, get a live rendered UI.",
   "start_url": "/",
   "display": "standalone",

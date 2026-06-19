@@ -13,10 +13,10 @@
     model: MODELS[0].id,
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: '',
-    workerURL: 'https://webhooks-email.logiclemonai.workers.dev',
+    workerURL: 'https://jump-studio.logiclemonai.workers.dev',
     proxyEndpoint: '',
-    siteURL: window.location.origin || 'https://webhooks.email',
-    siteName: 'webhooks.email',
+    siteURL: window.location.origin || 'https://dipdesigns.app',
+    siteName: 'dipdesigns.app',
     isProxyMode: false,
   };
 
@@ -111,18 +111,18 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   };
 
   const BUILTIN_SKILLS = [
-    { id: 'dark-dashboard', name: 'Dark Dashboard', category: 'dashboard', prompt: 'a dark dashboard with sidebar navigation, stat cards, a chart area, and a top header with user avatar', tags: ['dashboard', 'dark', 'analytics'], contributor: 'webhooks.email' },
-    { id: 'landing-page', name: 'Landing Page', category: 'landing', prompt: 'a modern landing page with a hero section, feature grid, testimonials, and a footer with social links', tags: ['landing', 'marketing', 'hero'], contributor: 'webhooks.email' },
-    { id: 'chat-interface', name: 'Chat Interface', category: 'app', prompt: 'a messaging chat interface with a contact list on the left, message bubbles, and an input bar at the bottom', tags: ['chat', 'messaging', 'social'], contributor: 'webhooks.email' },
-    { id: 'ecommerce-product', name: 'Product Page', category: 'ecommerce', prompt: 'an ecommerce product page with image gallery, product details, size selector, add to cart button, and reviews section', tags: ['ecommerce', 'product', 'shop'], contributor: 'webhooks.email' },
-    { id: 'settings-panel', name: 'Settings Panel', category: 'dashboard', prompt: 'a settings panel with tabs for profile, notifications, security, and appearance with toggle switches and form inputs', tags: ['settings', 'form', 'profile'], contributor: 'webhooks.email' },
-    { id: 'analytics-dashboard', name: 'Analytics Dashboard', category: 'dashboard', prompt: 'an analytics dashboard with a date range picker, line chart, bar chart, stat cards, and a data table', tags: ['dashboard', 'analytics', 'charts'], contributor: 'webhooks.email' },
-    { id: 'signin-form', name: 'Sign In Form', category: 'auth', prompt: 'a clean sign-in page with email and password fields, remember me checkbox, social login buttons, and a sign up link', tags: ['auth', 'login', 'form'], contributor: 'webhooks.email' },
-    { id: 'pricing-table', name: 'Pricing Table', category: 'landing', prompt: 'a pricing comparison page with three tiers (Free, Pro, Enterprise), feature lists, and CTA buttons with a toggle for monthly/yearly', tags: ['pricing', 'landing', 'saas'], contributor: 'webhooks.email' },
-    { id: 'music-player', name: 'Music Player', category: 'media', prompt: 'a music player UI with album art, track list, progress bar, play/pause/skip controls, and volume slider', tags: ['media', 'player', 'music'], contributor: 'webhooks.email' },
-    { id: 'kanban-board', name: 'Kanban Board', category: 'app', prompt: 'a kanban board with three columns (Todo, In Progress, Done), draggable task cards with avatars and priority labels', tags: ['kanban', 'project', 'productivity'], contributor: 'webhooks.email' },
-    { id: 'weather-widget', name: 'Weather Dashboard', category: 'widget', prompt: 'a weather dashboard showing current conditions, 7-day forecast, hourly breakdown, and location search', tags: ['weather', 'widget', 'data'], contributor: 'webhooks.email' },
-    { id: 'social-feed', name: 'Social Feed', category: 'social', prompt: 'a social media feed with post cards containing user avatar, text content, image, like/comment/share buttons', tags: ['social', 'feed', 'cards'], contributor: 'webhooks.email' },
+    { id: 'dark-dashboard', name: 'Dark Dashboard', category: 'dashboard', prompt: 'a dark dashboard with sidebar navigation, stat cards, a chart area, and a top header with user avatar', tags: ['dashboard', 'dark', 'analytics'], contributor: 'dipdesigns.app' },
+    { id: 'landing-page', name: 'Landing Page', category: 'landing', prompt: 'a modern landing page with a hero section, feature grid, testimonials, and a footer with social links', tags: ['landing', 'marketing', 'hero'], contributor: 'dipdesigns.app' },
+    { id: 'chat-interface', name: 'Chat Interface', category: 'app', prompt: 'a messaging chat interface with a contact list on the left, message bubbles, and an input bar at the bottom', tags: ['chat', 'messaging', 'social'], contributor: 'dipdesigns.app' },
+    { id: 'ecommerce-product', name: 'Product Page', category: 'ecommerce', prompt: 'an ecommerce product page with image gallery, product details, size selector, add to cart button, and reviews section', tags: ['ecommerce', 'product', 'shop'], contributor: 'dipdesigns.app' },
+    { id: 'settings-panel', name: 'Settings Panel', category: 'dashboard', prompt: 'a settings panel with tabs for profile, notifications, security, and appearance with toggle switches and form inputs', tags: ['settings', 'form', 'profile'], contributor: 'dipdesigns.app' },
+    { id: 'analytics-dashboard', name: 'Analytics Dashboard', category: 'dashboard', prompt: 'an analytics dashboard with a date range picker, line chart, bar chart, stat cards, and a data table', tags: ['dashboard', 'analytics', 'charts'], contributor: 'dipdesigns.app' },
+    { id: 'signin-form', name: 'Sign In Form', category: 'auth', prompt: 'a clean sign-in page with email and password fields, remember me checkbox, social login buttons, and a sign up link', tags: ['auth', 'login', 'form'], contributor: 'dipdesigns.app' },
+    { id: 'pricing-table', name: 'Pricing Table', category: 'landing', prompt: 'a pricing comparison page with three tiers (Free, Pro, Enterprise), feature lists, and CTA buttons with a toggle for monthly/yearly', tags: ['pricing', 'landing', 'saas'], contributor: 'dipdesigns.app' },
+    { id: 'music-player', name: 'Music Player', category: 'media', prompt: 'a music player UI with album art, track list, progress bar, play/pause/skip controls, and volume slider', tags: ['media', 'player', 'music'], contributor: 'dipdesigns.app' },
+    { id: 'kanban-board', name: 'Kanban Board', category: 'app', prompt: 'a kanban board with three columns (Todo, In Progress, Done), draggable task cards with avatars and priority labels', tags: ['kanban', 'project', 'productivity'], contributor: 'dipdesigns.app' },
+    { id: 'weather-widget', name: 'Weather Dashboard', category: 'widget', prompt: 'a weather dashboard showing current conditions, 7-day forecast, hourly breakdown, and location search', tags: ['weather', 'widget', 'data'], contributor: 'dipdesigns.app' },
+    { id: 'social-feed', name: 'Social Feed', category: 'social', prompt: 'a social media feed with post cards containing user avatar, text content, image, like/comment/share buttons', tags: ['social', 'feed', 'cards'], contributor: 'dipdesigns.app' },
   ];
 
   const STORAGE_SKILLS_KEY = 'webhooks_email_user_skills';
@@ -176,7 +176,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     );
 
     if (filtered.length === 0) {
-      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">No skills found. <button onclick="WebhooksEmail.showAddSkill()" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:12px;font-family:var(--font)">Add your own</button></div>';
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim)">No skills found. <button onclick="DipDesigns.showAddSkill()" style="background:none;border:1px solid var(--accent);color:var(--accent);padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:12px;font-family:var(--font)">Add your own</button></div>';
       return;
     }
 
@@ -189,8 +189,8 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
         '<div class="skill-footer">' +
         '<span>' + (s.tags ? s.tags.slice(0, 3).join(', ') : '') + '</span>' +
         '<div>' +
-        (isUser ? '<button class="use-btn" style="margin-right:6px;background:var(--error)" onclick="WebhooksEmail._removeSkill(\'' + s.id + '\')">X</button>' : '') +
-        '<button class="use-btn" onclick="WebhooksEmail._useSkill(\'' + s.id + '\')">Use Skill</button>' +
+        (isUser ? '<button class="use-btn" style="margin-right:6px;background:var(--error)" onclick="DipDesigns._removeSkill(\'' + s.id + '\')">X</button>' : '') +
+        '<button class="use-btn" onclick="DipDesigns._useSkill(\'' + s.id + '\')">Use Skill</button>' +
         '</div></div></div>';
     }).join('');
   }
@@ -310,7 +310,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     if (key.startsWith('wek_')) {
       const proxyURL = localStorage.getItem('webhooks_email_proxy') || '';
       if (!proxyURL) {
-        throw new Error('Set your webhooks.email backend URL first via WebhooksEmail.setProxyEndpoint()');
+        throw new Error('Set your dipdesigns.app backend URL first via DipDesigns.setProxyEndpoint()');
       }
       const res = await fetch(proxyURL.replace(/\/+$/, '') + '/api/validate-key', {
         method: 'POST',
@@ -318,7 +318,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
       });
       if (!res.ok) throw new Error('Backend validation failed: ' + res.status);
       const data = await res.json();
-      if (!data.valid) throw new Error('Invalid webhooks.email key');
+      if (!data.valid) throw new Error('Invalid dipdesigns.app key');
       return { label: data.label, models: data.models || [] };
     }
     const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
@@ -821,7 +821,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
   async function executeSkillChain(userPrompt, signal) {
     if (CONFIG.isProxyMode || isFreeMode()) {
-      showStatus(isFreeMode() ? 'Generating (free)...' : 'Generating via webhooks.email...');
+      showStatus(isFreeMode() ? 'Generating (free)...' : 'Generating via dipdesigns.app...');
       return callGemma([
         { role: 'user', content: userPrompt },
       ], { signal });
@@ -1101,7 +1101,7 @@ window.addEventListener('unhandledrejection', function(e) {
     const model = CONFIG.model || 'unknown';
 
     let md = '# Implementation Handoff\n\n';
-    md += '> Auto-generated by webhooks.email Export · ' + now + '\n';
+    md += '> Auto-generated by dipdesigns.app Export · ' + now + '\n';
     md += '> Model: `' + model + '`\n\n';
     md += '## Source Prompt\n\n';
     md += '```\n' + prompt + '\n```\n\n';
@@ -1133,7 +1133,7 @@ window.addEventListener('unhandledrejection', function(e) {
     md += '## Generated JS\n\n';
     md += '```javascript\n' + (data.js || '') + '\n```\n\n';
     md += '---\n\n';
-    md += '*Generated by [webhooks.email](https://webhooks.email) — the phone→production bridge for builders.*\n';
+    md += '*Generated by [dipdesigns.app](https://dipdesigns.app) — the AI design studio.*\n';
 
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -1176,11 +1176,11 @@ window.addEventListener('unhandledrejection', function(e) {
       return;
     }
     if (!desktopURL) {
-      addMessage('Set the desktop IP first: WebhooksEmail.setDesktopIP("192.168.x.x")', 'error');
+      addMessage('Set the desktop IP first: DipDesigns.setDesktopIP("192.168.x.x")', 'error');
       return;
     }
     if (!desktopKey) {
-      addMessage('Set your desktop key first: WebhooksEmail.setDesktopKey("<key printed by receiver.js>")', 'error');
+      addMessage('Set your desktop key first: DipDesigns.setDesktopKey("<key printed by receiver.js>")', 'error');
       return;
     }
     const fullDoc = buildFullDoc(lastResult);
@@ -1424,7 +1424,7 @@ window.addEventListener('unhandledrejection', function(e) {
     refreshAuthUI();
   });
 
-  window.WebhooksEmail = {
+  window.DipDesigns = {
     setApiKey,
     setBaseURL,
     setProxyEndpoint,

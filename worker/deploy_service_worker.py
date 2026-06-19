@@ -4,7 +4,7 @@ import json, os, io, uuid, sys, urllib.request, ssl
 
 ACCOUNT_ID = "8a460817bc554362e040644c8e003fb9"
 API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
-SCRIPT_NAME = "webhooks-email"
+SCRIPT_NAME = "jump-studio"
 ZONE_ID = "349934a4962bacc0bee1362c1e438bed"
 KV_ID = "5b35c96a0bdd418685bfb6ce68884acd"
 

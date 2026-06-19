@@ -8,9 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 
-app = FastAPI(title="webhooks.email Identity API", version="2.0.0")
+app = FastAPI(title="dipdesigns.app Identity API", version="2.0.0")
 
-_default_origins = "https://webhooks.email,https://www.webhooks.email,http://127.0.0.1:8080,http://127.0.0.1:5500"
+_default_origins = "https://dipdesigns.app,https://www.dipdesigns.app,http://127.0.0.1:8080,http://127.0.0.1:5500"
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("BACKEND_ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
 
 app.add_middleware(
@@ -61,7 +61,7 @@ async def signup(req: SignupRequest):
     return SignupResponse(
         user_id=user_id,
         api_key=api_key,
-        message="Welcome to webhooks.email! Use your API key in x-api-key header with the Worker."
+        message="Welcome to dipdesigns.app! Use your API key in x-api-key header with the Worker."
     )
 
 @app.post("/api/validate-key", response_model=ValidateKeyResponse)
@@ -72,7 +72,7 @@ async def validate_key(x_api_key: str = Header(None)):
     if user_id:
         return ValidateKeyResponse(
             valid=True,
-            label=users_db[user_id]["email"] if user_id in users_db else "webhooks.email user",
+            label=users_db[user_id]["email"] if user_id in users_db else "dipdesigns.app user",
             models=list(SUPPORTED_MODELS.keys()),
         )
     if x_api_key.startswith("sk-or-"):

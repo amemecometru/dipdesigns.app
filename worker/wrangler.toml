@@ -1,4 +1,4 @@
-name = "webhooks-email"
+name = "jump-studio"
 main = "index.js"
 compatibility_date = "2026-06-11"
 

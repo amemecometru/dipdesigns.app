@@ -7,7 +7,7 @@ const CONFIG = {
   OPENROUTER_BASE: 'https://openrouter.ai/api/v1',
   MODEL: 'google/gemma-4-26b-a4b-it:free',
   FREE_MODEL: 'google/gemma-3-12b-it',
-  ALLOWED_ORIGINS: ['https://jump.logiclemonai.workers.dev', 'https://webhooks.email', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
+  ALLOWED_ORIGINS: ['https://dipdesigns.app', 'https://jump.logiclemonai.workers.dev', 'http://127.0.0.1:5500', 'http://127.0.0.1:8000', 'http://127.0.0.1:8080'],
   STRIPE_API: 'https://api.stripe.com/v1',
   PRICE_IDS: {
     pack_small: 'price_1ThKvDQyNHJ9tQdyQyIPLBXj',
@@ -338,8 +338,8 @@ async function handleCheckout(request, cors, env) {
         mode: isSub ? 'subscription' : 'payment',
         'line_items[0][price]': CONFIG.PRICE_IDS[item],
         'line_items[0][quantity]': '1',
-        'success_url': 'https://webhooks-email.logiclemonai.workers.dev/studio?checkout=success&session_id={CHECKOUT_SESSION_ID}',
-        'cancel_url': 'https://webhooks-email.logiclemonai.workers.dev/studio?checkout=cancel',
+        'success_url': 'https://dipdesigns.app/studio?checkout=success&session_id={CHECKOUT_SESSION_ID}',
+        'cancel_url': 'https://dipdesigns.app/studio?checkout=cancel',
         'client_reference_id': principal,
         'metadata[principal]': principal,
         'metadata[item]': item,
@@ -469,7 +469,7 @@ async function handleOAuth(request, url, env) {
 
   if (!isCallback) {
     const state = generateId(32);
-    const appRedirect = url.searchParams.get('redirect') || 'https://webhooks.email';
+    const appRedirect = url.searchParams.get('redirect') || 'https://dipdesigns.app';
     if (env.WEBHOOKS_KV) {
       await env.WEBHOOKS_KV.put('oauth_state:' + state, JSON.stringify({ provider, appRedirect }), { expirationTtl: 300 });
     }
@@ -493,7 +493,7 @@ async function handleOAuth(request, url, env) {
     await env.WEBHOOKS_KV.delete('oauth_state:' + state);
   }
   if (!stateData) return new Response('Invalid or expired state', { status: 400, headers: cors });
-  const appRedirect = stateData.appRedirect || 'https://webhooks.email';
+  const appRedirect = stateData.appRedirect || 'https://dipdesigns.app';
 
   try {
     let accessToken, email;
@@ -507,11 +507,11 @@ async function handleOAuth(request, url, env) {
       accessToken = tokenData.access_token;
       if (!accessToken) return new Response('GitHub: ' + (tokenData.error_description || 'token exchange failed'), { status: 502, headers: cors });
 
-      const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + accessToken, 'User-Agent': 'webhooks.email' } });
+      const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + accessToken, 'User-Agent': 'dipdesigns.app' } });
       const userData = await userRes.json();
       if (userData.email) { email = userData.email; }
       else {
-        const emailsRes = await fetch('https://api.github.com/user/emails', { headers: { 'Authorization': 'Bearer ' + accessToken, 'User-Agent': 'webhooks.email' } });
+        const emailsRes = await fetch('https://api.github.com/user/emails', { headers: { 'Authorization': 'Bearer ' + accessToken, 'User-Agent': 'dipdesigns.app' } });
         const emails = await emailsRes.json();
         const primary = emails.find(e => e.primary && e.verified);
         email = primary ? primary.email : (emails[0]?.email || '');
