@@ -1,8 +1,8 @@
-# LogiclemonAI — Cross-Platform AI-Design-Studio
+# DipDesigns.App — Cross-Platform AI-Design-Studio
 
-Vibe/Text a ui-design on your mobile-android, click-a-button & now it's waiting at your desk via webhook. A live rendered ui is ready to work on your favorite device.
+Vibe/Text a ui-design on your mobile-android, click-a-button & now it's waiting at your desk. A live rendered ui is ready for work on your favorite device.
 
-LogiclemonAI is a serverless, client-side Progressive Mobile/Web App (PWA) that lets you describe a user interface in plain English and have Gemma 4 [or model] (via OpenRouter) generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required. When the design is complete the AI-Design-Assistant will create a "backend-handoff.md" tailored for the "Target-Stack" — your stack.
+DipDesigns.App is a serverless, client-side Progressive Mobile/Web App (PWA) that lets you describe a user interface in plain English and have Gemma 4 [or model] (via OpenRouter) generate the HTML/CSS/JS on the fly. The result renders live in a sandboxed iframe — no build step, no backend required. When the design is complete the AI-Design-Assistant will create a "backend-handoff.md" tailored for the "Target-Stack" — your stack.
 
 ## Architecture
 
