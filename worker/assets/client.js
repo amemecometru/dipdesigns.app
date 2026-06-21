@@ -319,6 +319,9 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     CONFIG.apiKey = '';
     CONFIG.isProxyMode = false;
     CONFIG.proxyEndpoint = '';
+    CONFIG.provider = '';
+    CONFIG.baseURL = 'https://openrouter.ai/api/v1';
+    CONFIG.model = MODELS[0].id;
     localStorage.removeItem(STORAGE_KEY);
     showModelSelector(false);
     updateStatus('disconnected');
@@ -500,6 +503,27 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     window.location.href = base + '/api/auth/' + provider + '?redirect=' + encodeURIComponent(back);
   }
 
+  async function checkSubscription() {
+    var base = workerBase();
+    var key = CONFIG.apiKey || localStorage.getItem(STORAGE_KEY);
+    var pill = document.getElementById('signedInPill');
+    if (!key || !key.startsWith('wek_') || !base) return null;
+    try {
+      var res = await fetch(base + '/api/balance', { headers: { 'x-api-key': key } });
+      if (!res.ok) return null;
+      var data = await res.json();
+      var sub = data.subscription || { status: 'none' };
+      if (pill) {
+        pill.innerHTML = sub.status === 'active' ? '&#10003; Pro &#183; $12/mo' : '&#10003; Trial';
+        pill.title = sub.status === 'active' ? 'Pro subscription active' : 'Sign in — subscribe to unlock';
+      }
+      return sub;
+    } catch {
+      if (pill) pill.innerHTML = '&#10003; Connected';
+      return null;
+    }
+  }
+
   function handleAuthRedirect() {
     const params = new URLSearchParams(window.location.search);
     const authKey = params.get('auth');
@@ -512,8 +536,16 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
       const clean = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
       window.history.replaceState({}, document.title, clean);
       refreshAuthUI();
-      switchView('app');
-      addMessage('✓ Signed in — you’re connected. Start generating.', 'assistant');
+      // Check subscription for new OAuth users
+      checkSubscription().then(function(sub) {
+        if (sub && sub.status === 'active') {
+          switchView('app');
+          addMessage('✓ Pro — subscribed. Connect your API key in Settings and start generating.', 'assistant');
+        } else {
+          switchView('pricing');
+          addMessage('✓ Signed in — subscribe to unlock the studio, or use your own API key.', 'assistant');
+        }
+      });
       return true;
     }
     return false;
@@ -524,7 +556,19 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     const pill = document.getElementById('signedInPill');
     const connected = !!CONFIG.apiKey;
     if (cluster) cluster.style.display = connected ? 'none' : 'flex';
-    if (pill) pill.style.display = connected ? 'inline-flex' : 'none';
+    if (pill) {
+      pill.style.display = connected ? 'inline-flex' : 'none';
+      // BYOK: show provider label. Proxy: checkSubscription will update via async.
+      if (connected && CONFIG.provider && CONFIG.provider !== 'proxy') {
+        var label = PROVIDER_CONFIG[CONFIG.provider] ? PROVIDER_CONFIG[CONFIG.provider].label : 'Connected';
+        pill.innerHTML = '&#10003; ' + label;
+        pill.title = 'Using ' + label;
+      } else if (connected && CONFIG.provider === 'proxy') {
+        pill.innerHTML = '&#10003; Signed in';
+        pill.title = 'Checking subscription...';
+        checkSubscription();
+      }
+    }
   }
 
   function setDesktopIP(ip) {
@@ -881,18 +925,22 @@ window.addEventListener('unhandledrejection', function(e) {
     }
 
     if (prov === 'google') {
-      // Convert messages to Gemini format
+      // Convert messages to Gemini format (system → system_instruction, rest → contents)
+      var systemInstruction = '';
       var geminiContents = [];
       messages.forEach(function(m) {
+        if (m.role === 'system') { systemInstruction += m.content + '\n'; return; }
         var role = m.role === 'assistant' ? 'model' : 'user';
         geminiContents.push({ role: role, parts: [{ text: m.content }] });
       });
+      var geminiBody = { contents: geminiContents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 } };
+      if (systemInstruction.trim()) geminiBody.system_instruction = { parts: [{ text: systemInstruction.trim() }] };
       var modelId = CONFIG.model;
       var url = CONFIG.baseURL + '/models/' + modelId + ':generateContent?key=' + CONFIG.apiKey;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: geminiContents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 } }),
+        body: JSON.stringify(geminiBody),
         signal: signal,
       });
       if (!res.ok) {
@@ -1553,6 +1601,17 @@ window.addEventListener('unhandledrejection', function(e) {
     const cameFromOAuth = handleAuthRedirect();
     if (!cameFromOAuth && loadApiKey()) {
       updateStatus('connected');
+      populateModelSelector();
+      var pModels = activeModels();
+      showModelSelector(pModels.length > 1);
+      // Check subscription for returning wek_ users
+      if (CONFIG.provider === 'proxy') {
+        checkSubscription().then(function(sub) {
+          if (!sub || sub.status !== 'active') {
+            addMessage('Your subscription is ' + (sub ? sub.status : 'inactive') + '. Subscribe or add your own API key to keep generating.', 'assistant');
+          }
+        });
+      }
     }
 
     // Inspiration prompt (?prompt=...): auto-send when landing from inspiration page
