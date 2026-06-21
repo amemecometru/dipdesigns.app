@@ -9,10 +9,47 @@
     { id: 'qwen/qwen-2.5-7b-instruct', name: 'Qwen 2.5 (7B)', desc: 'Solid all-rounder' },
   ];
 
+  function detectProvider(key) {
+    if (!key) return '';
+    if (key.startsWith('wek_')) return 'proxy';
+    if (key.startsWith('sk-ant-')) return 'anthropic';
+    if (key.startsWith('sk-or-')) return 'openrouter';
+    if (key.startsWith('sk-')) return 'openai';
+    if (key.startsWith('AIza')) return 'google';
+    return 'openrouter';
+  }
+
+  const PROVIDER_CONFIG = {
+    openrouter: { baseURL: 'https://openrouter.ai/api/v1', label: 'OpenRouter' },
+    openai:     { baseURL: 'https://api.openai.com/v1',     label: 'OpenAI' },
+    anthropic:  { baseURL: 'https://api.anthropic.com/v1',  label: 'Anthropic' },
+    google:     { baseURL: 'https://generativelanguage.googleapis.com/v1beta', label: 'Google Gemini' },
+  };
+
+  const MODELS_BY_PROVIDER = {
+    openrouter: MODELS,
+    openai: [
+      { id: 'gpt-4o',               name: 'GPT-4o',         desc: 'Best all-round' },
+      { id: 'gpt-4o-mini',          name: 'GPT-4o Mini',    desc: 'Fast & cheap' },
+      { id: 'gpt-4.1',              name: 'GPT-4.1',        desc: 'Latest GPT-4' },
+      { id: 'o3-mini',              name: 'o3-mini',        desc: 'Reasoning model' },
+    ],
+    anthropic: [
+      { id: 'claude-sonnet-4-20250514',      name: 'Claude Sonnet 4',   desc: 'Best balance' },
+      { id: 'claude-3-5-sonnet-20241022',    name: 'Claude 3.5 Sonnet', desc: 'Previous gen' },
+      { id: 'claude-3-5-haiku-20241022',     name: 'Claude 3.5 Haiku',  desc: 'Fast & cheap' },
+    ],
+    google: [
+      { id: 'gemini-2.5-flash',      name: 'Gemini 2.5 Flash', desc: 'Fast, default' },
+      { id: 'gemini-2.5-pro',        name: 'Gemini 2.5 Pro',   desc: 'Highest quality' },
+    ],
+  };
+
   const CONFIG = {
     model: MODELS[0].id,
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey: '',
+    provider: '',
     workerURL: 'https://workers.dipdesigns.app',
     proxyEndpoint: '',
     siteURL: window.location.origin || 'https://dipdesigns.app',
@@ -235,24 +272,44 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       CONFIG.apiKey = stored;
+      CONFIG.provider = detectProvider(stored);
+      if (CONFIG.provider && CONFIG.provider !== 'proxy') {
+        var pCfg = PROVIDER_CONFIG[CONFIG.provider];
+        if (pCfg) CONFIG.baseURL = pCfg.baseURL;
+      }
       return true;
     }
     return false;
+  }
+
+  function modelsForProvider(provider) {
+    return MODELS_BY_PROVIDER[provider] || MODELS;
+  }
+
+  function activeModels() {
+    return modelsForProvider(CONFIG.provider || 'openrouter');
   }
 
   function saveApiKey(key) {
     CONFIG.apiKey = key;
     localStorage.setItem(STORAGE_KEY, key);
     setFreeRemaining(0);
-    if (key.startsWith('wek_')) {
+    CONFIG.provider = detectProvider(key);
+    if (CONFIG.provider === 'proxy') {
       CONFIG.isProxyMode = true;
-      // The Worker owns /api/generate, so default the proxy target to the Worker.
       CONFIG.proxyEndpoint = localStorage.getItem('webhooks_email_proxy') || workerBase();
       showModelSelector(true);
     } else {
       CONFIG.isProxyMode = false;
       CONFIG.proxyEndpoint = '';
-      showModelSelector(false);
+      var pCfg = PROVIDER_CONFIG[CONFIG.provider];
+      CONFIG.baseURL = pCfg ? pCfg.baseURL : 'https://openrouter.ai/api/v1';
+      // switch to first model for this provider if current isn't in its list
+      var pModels = modelsForProvider(CONFIG.provider);
+      if (!pModels.some(function(m) { return m.id === CONFIG.model; })) {
+        CONFIG.model = pModels[0].id;
+      }
+      showModelSelector(pModels.length > 1);
     }
     updateStatus('connected');
     refreshAuthUI();
@@ -269,7 +326,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   }
 
   function setModel(modelId) {
-    if (MODELS.some(m => m.id === modelId)) {
+    if (activeModels().some(m => m.id === modelId)) {
       CONFIG.model = modelId;
     }
   }
@@ -287,7 +344,8 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     const container = document.getElementById('modelSelector');
     if (!container) return;
     container.innerHTML = '';
-    MODELS.forEach(m => {
+    var pModels = activeModels();
+    pModels.forEach(m => {
       const opt = document.createElement('button');
       opt.className = 'model-opt' + (m.id === CONFIG.model ? ' active' : '');
       opt.textContent = m.name;
@@ -298,7 +356,7 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
         opt.classList.add('active');
         setModel(m.id);
         CONFIG.model = m.id;
-        if (m.id !== MODELS[0].id && CONFIG.isProxyMode) {
+        if (m.id !== pModels[0].id) {
           addMessage('Switched to ' + m.name + ' (' + m.desc + ')', 'assistant');
         }
       });
@@ -307,7 +365,8 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
   }
 
   async function validateApiKey(key) {
-    if (key.startsWith('wek_')) {
+    var prov = detectProvider(key);
+    if (prov === 'proxy') {
       const proxyURL = localStorage.getItem('webhooks_email_proxy') || '';
       if (!proxyURL) {
         throw new Error('Set your dipdesigns.app backend URL first via DipDesigns.setProxyEndpoint()');
@@ -321,6 +380,32 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
       if (!data.valid) throw new Error('Invalid dipdesigns.app key');
       return { label: data.label, models: data.models || [] };
     }
+    if (prov === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': 'Bearer ' + key },
+      });
+      if (!res.ok) {
+        if (res.status === 401) throw new Error('Invalid OpenAI API key');
+        throw new Error('OpenAI validation failed: ' + res.status);
+      }
+      return { label: 'OpenAI' };
+    }
+    if (prov === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+      });
+      if (res.status === 401 || res.status === 403) throw new Error('Invalid Anthropic API key');
+      if (res.status === 400) return { label: 'Anthropic' };
+      throw new Error('Anthropic validation failed: ' + res.status);
+    }
+    if (prov === 'google') {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + key);
+      if (!res.ok) throw new Error('Invalid Google Gemini API key');
+      return { label: 'Google Gemini' };
+    }
+    // OpenRouter (default)
     const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
       headers: { 'Authorization': 'Bearer ' + key },
     });
@@ -338,7 +423,8 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
     if (!dot || !text) return;
     if (state === 'connected') {
       dot.style.background = 'var(--success)';
-      text.textContent = 'Gemma-4 Ready';
+      var provLabel = PROVIDER_CONFIG[CONFIG.provider] ? PROVIDER_CONFIG[CONFIG.provider].label : '';
+      text.textContent = provLabel ? provLabel + ' Connected' : 'Gemma-4 Ready';
     } else if (state === 'disconnected') {
       dot.style.background = 'var(--error)';
       text.textContent = 'No API Key';
@@ -761,28 +847,90 @@ window.addEventListener('unhandledrejection', function(e) {
       return res.json();
     }
 
+    return callProviderAPI(messages, signal);
+  }
+
+  async function callProviderAPI(messages, signal) {
+    var prov = CONFIG.provider || 'openrouter';
+
+    if (prov === 'anthropic') {
+      // Extract system message for Anthropic's separate system field
+      var systemMsg = '';
+      var chatMessages = messages.filter(function(m) {
+        if (m.role === 'system') { systemMsg += m.content + '\n'; return false; }
+        return true;
+      });
+      var body = { model: CONFIG.model, max_tokens: 8192, messages: chatMessages };
+      if (systemMsg.trim()) body.system = systemMsg.trim();
+      const res = await fetch(CONFIG.baseURL + '/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': CONFIG.apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify(body),
+        signal: signal,
+      });
+      if (!res.ok) {
+        var errBody = await res.text();
+        throw new Error('Anthropic: ' + res.status + ' ' + errBody);
+      }
+      var raw = await res.json();
+      var content = '';
+      if (raw.content && Array.isArray(raw.content)) {
+        raw.content.forEach(function(block) { if (block.type === 'text') content += block.text; });
+      }
+      return parseJSON(content);
+    }
+
+    if (prov === 'google') {
+      // Convert messages to Gemini format
+      var geminiContents = [];
+      messages.forEach(function(m) {
+        var role = m.role === 'assistant' ? 'model' : 'user';
+        geminiContents.push({ role: role, parts: [{ text: m.content }] });
+      });
+      var modelId = CONFIG.model;
+      var url = CONFIG.baseURL + '/models/' + modelId + ':generateContent?key=' + CONFIG.apiKey;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: geminiContents, generationConfig: { temperature: 0.7, maxOutputTokens: 8192 } }),
+        signal: signal,
+      });
+      if (!res.ok) {
+        var errBody = await res.text();
+        throw new Error('Gemini: ' + res.status + ' ' + errBody);
+      }
+      var raw = await res.json();
+      var content = '';
+      if (raw.candidates && raw.candidates[0] && raw.candidates[0].content) {
+        raw.candidates[0].content.parts.forEach(function(p) { if (p.text) content += p.text; });
+      }
+      return parseJSON(content);
+    }
+
+    // OpenAI-compatible (OpenRouter, OpenAI direct)
+    var headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + CONFIG.apiKey,
+    };
+    var body = { model: CONFIG.model, messages: messages };
+    if (prov === 'openrouter') {
+      headers['HTTP-Referer'] = CONFIG.siteURL;
+      headers['X-Title'] = CONFIG.siteName;
+      body.extra_body = { reasoning: { enabled: true } };
+    }
     const res = await fetch(CONFIG.baseURL + '/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + CONFIG.apiKey,
-        'HTTP-Referer': CONFIG.siteURL,
-        'X-Title': CONFIG.siteName,
-      },
-      body: JSON.stringify({
-        model: CONFIG.model,
-        messages: messages,
-        extra_body: { reasoning: { enabled: true } },
-      }),
+      headers: headers,
+      body: JSON.stringify(body),
       signal: signal,
     });
     if (!res.ok) {
-      const errBody = await res.text();
+      var errBody = await res.text();
       if (res.status === 429) throw new Error('Rate limited (429) — try again in a moment or rotate your API key.');
       throw new Error(res.status + ': ' + errBody);
     }
-    const raw = await res.json();
-    const content = raw.choices?.[0]?.message?.content || '';
+    var raw = await res.json();
+    var content = raw.choices?.[0]?.message?.content || '';
     return parseJSON(content);
   }
 
@@ -1333,12 +1481,12 @@ window.addEventListener('unhandledrejection', function(e) {
         try {
           const info = await validateApiKey(key);
           saveApiKey(key);
-          const label = info.label || info.name || 'OpenRouter';
+          var prov = detectProvider(key);
+          var provLabel = PROVIDER_CONFIG[prov] ? PROVIDER_CONFIG[prov].label : 'OpenRouter';
+          var label = info.label || info.name || provLabel;
           feedback.className = 'key-success';
-          feedback.textContent = 'Connected as ' + label + (key.startsWith('wek_') ? '. Model selector available.' : '.');
-          if (key.startsWith('wek_') || key.startsWith('sk-or-')) {
-            populateModelSelector();
-          }
+          feedback.textContent = 'Connected as ' + label + '.';
+          populateModelSelector();
           setTimeout(hideKeyModal, 1500);
         } catch (err) {
           feedback.className = 'key-error';
