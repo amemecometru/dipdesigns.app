@@ -538,12 +538,11 @@ Suggest practical webhook endpoints that integrate with the Cloudflare Worker an
       refreshAuthUI();
       // Check subscription for new OAuth users
       checkSubscription().then(function(sub) {
+        switchView('app');
         if (sub && sub.status === 'active') {
-          switchView('app');
           addMessage('✓ Pro — subscribed. Connect your API key in Settings and start generating.', 'assistant');
         } else {
-          switchView('pricing');
-          addMessage('✓ Signed in — subscribe to unlock the studio, or use your own API key.', 'assistant');
+          addMessage('✓ Signed in — subscribe to unlock full features, or use your own API key.', 'assistant');
         }
       });
       return true;

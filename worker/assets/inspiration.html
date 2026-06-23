@@ -167,6 +167,15 @@
   </div>
 
   <script>
+    (function(){
+      var q = new URLSearchParams(window.location.search).get('auth');
+      if (q) {
+        try { localStorage.setItem('webhooks_email_api_key', q); } catch(e) {}
+        var url = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', url);
+      }
+    })();
+
     const PROMPTS = [
       {id:'p1', title:'Analytics Dashboard', text:'Build a dark analytics dashboard with a fixed 240px left sidebar (nav items: Overview, Analytics, Reports, Settings with teal active indicator), a top header bar with a search input and user avatar, and four KPI metric cards in a 2x2 grid (Total Revenue $284.5k, Active Users 12,847, Conversion Rate 3.24%, Avg Session 4m 32s). Below the KPIs, place a full-width line chart showing 30 days of revenue with a gradient fill under the line (teal color #3fe0d0). To the right of the chart, add a vertical bar chart comparing monthly performance across 6 months. Below both charts, render a full-width data table with 8 rows of sample data, sortable column headers (Name, Status, Role, Last Active), striped rows, and teal accent on hover. Use CSS dark background #070b12, card surfaces #0f1724, text #e8edf5, muted text #8892a0. The entire layout should be responsive: on mobile (<768px) the sidebar collapses to a hamburger menu, KPIs stack in a single column, and charts stack vertically. Use system-ui sans-serif font. Every element should have realistic sample data — no placeholders or lorem ipsum.', category:'dashboards', tags:['dashboard','analytics','chart'], difficulty:'Medium', uses:124},
       {id:'p2', title:'SaaS Pricing Page', text:'Build a dark-themed SaaS pricing page with three pricing tier cards (Starter $29/mo, Pro $79/mo, Enterprise Custom) displayed side by side in a responsive grid. Add a monthly/annual toggle switch above the cards — when toggled to annual, show prices with a 20% discount and a "Save 20%" badge on each card. Each card should have: a tier name, price displayed prominently in large text, a short description, a bullet list of 5-6 features with checkmark icons in teal (#3fe0d0), and a prominent CTA button (teal fill for the middle/Pro card to highlight it, outlined style for the others). The middle Pro card should be visually elevated with a subtle teal border glow and a "Most Popular" badge at the top. Use dark background #070b12, card surfaces #0f1724 with 1px borders #1e293b. Add a FAQ section below the pricing cards with 4-5 expandable accordion items. Include a footer with "30-day money-back guarantee" text with a shield icon. Use system-ui font. All content must be realistic sample data — no lorem ipsum.', category:'landing', tags:['pricing','landing','saas'], difficulty:'Easy', uses:89},
