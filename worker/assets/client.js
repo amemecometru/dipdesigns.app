@@ -662,7 +662,24 @@ window.addEventListener('unhandledrejection', function(e) {
     return '<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>' + css + '</style></head>\n<body>' + html + '\n<script>' + js + '<\/script>\n</body>\n</html>';
   }
 
+  let lastWorkingVersion = null;
+  let previewLoadTimer = null;
+
+  function validatePreviewData(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (typeof data.html !== 'string' || typeof data.css !== 'string' || typeof data.js !== 'string') return false;
+    if (!data.html && !data.css && !data.js) return false;
+    return true;
+  }
+
   function renderPreview(data) {
+    if (!validatePreviewData(data)) {
+      console.warn('renderPreview: invalid data — rolling back to last working version if available');
+      if (lastWorkingVersion) { renderPreview(lastWorkingVersion); }
+      return;
+    }
+    if (previewSkit) previewSkit.stop();
+    lastWorkingVersion = data;
     const fullDoc = buildFullDoc(data);
     const docWithTelemetry = injectTelemetry(fullDoc);
     const blob = new Blob([docWithTelemetry], { type: 'text/html' });
@@ -670,6 +687,16 @@ window.addEventListener('unhandledrejection', function(e) {
     dom.preview.src = url;
     if (typeof fitPreviewIfFit === 'function') fitPreviewIfFit();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (previewLoadTimer) clearTimeout(previewLoadTimer);
+    previewLoadTimer = setTimeout(() => {
+      try {
+        const iframeDoc = dom.preview.contentDocument || dom.preview.contentWindow?.document;
+        if (iframeDoc && (!iframeDoc.body || iframeDoc.body.innerHTML.trim().length < 10)) {
+          console.warn('preview load timeout — iframe appears empty, triggering self-heal');
+          window.postMessage({ type: 'IFRAME_RUNTIME_ERROR', error: 'Preview failed to render content', line: 0, col: 0, source: '' }, '*');
+        }
+      } catch(e) {}
+    }, 8000);
   }
 
   function parseJSON(content) {
@@ -1009,6 +1036,21 @@ window.addEventListener('unhandledrejection', function(e) {
   async function skillDebugger(originalPrompt, brokenData, errorInfo, signal) {
     showStatus('Self-healing: fixing runtime error...');
     const currentCode = buildFullDoc(brokenData);
+    const baseURL = (CONFIG.workerURL || CONFIG.proxyEndpoint || '').replace(/\/+$/, '') || 'https://workers.dipdesigns.app';
+    try {
+      const cfRes = await fetch(baseURL + '/api/ai/debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originalPrompt, currentCode, errorInfo }),
+        signal: signal,
+      });
+      if (cfRes.ok) {
+        const cfData = await cfRes.json();
+        if (cfData && cfData.html) return { html: cfData.html, css: cfData.css || '', js: cfData.js || '' };
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+    }
     return callGemma([
       { role: 'system', content: SKILLS.debugger.system },
       { role: 'user', content: 'Original user intent:\n' + originalPrompt + '\n\nCurrent code:\n' + currentCode + '\n\nRuntime error:\n' + errorInfo.error + '\nLine: ' + errorInfo.line + ' Column: ' + errorInfo.col + '\n\nFix the bug and return the complete corrected HTML, CSS, and JS.' },
@@ -1112,18 +1154,22 @@ window.addEventListener('unhandledrejection', function(e) {
   }
 
   const CLIENT_ID = 'c_' + Math.random().toString(36).slice(2, 10);
+  let pushStateTimer = null;
 
   async function pushState(parsed, prompt) {
     if (!CONFIG.workerURL || !parsed) return;
-    try {
-      await fetch(CONFIG.workerURL + '/api/state?session=' + getOrCreateSessionId(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parsed: parsed, prompt: prompt || lastPrompt, origin: CLIENT_ID }),
-      });
-    } catch (err) {
-      console.warn('pushState failed (non-fatal):', err.message);
-    }
+    if (pushStateTimer) clearTimeout(pushStateTimer);
+    pushStateTimer = setTimeout(async () => {
+      try {
+        await fetch(CONFIG.workerURL + '/api/state?session=' + getOrCreateSessionId(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parsed: parsed, prompt: prompt || lastPrompt, origin: CLIENT_ID }),
+        });
+      } catch (err) {
+        console.warn('pushState failed (non-fatal):', err.message);
+      }
+    }, 300);
   }
 
   async function hydrateState() {
@@ -1143,6 +1189,19 @@ window.addEventListener('unhandledrejection', function(e) {
   }
 
   let eventSource = null;
+  let sseRetryDelay = 500;
+  const SSE_MAX_RETRY = 30000;
+  let pollTimer = null;
+  const POLL_INTERVAL = 15000;
+
+  function updateConnectionStatus(connected) {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (dot) dot.style.background = connected ? 'var(--teal)' : 'var(--amber)';
+    if (text && !document.getElementById('freeCountHint')?.textContent) {
+      text.textContent = connected ? 'Live' : 'Reconnecting...';
+    }
+  }
 
   function connectStream() {
     if (!CONFIG.workerURL) return;
@@ -1166,11 +1225,18 @@ window.addEventListener('unhandledrejection', function(e) {
         }
       } catch {}
     };
-    eventSource.onopen = () => { hydrateState(); };
+    eventSource.onopen = () => {
+      sseRetryDelay = 500;
+      updateConnectionStatus(true);
+      hydrateState();
+      startPollFallback();
+    };
     eventSource.onerror = () => {
       eventSource.close();
       eventSource = null;
-      setTimeout(connectStream, 5000);
+      updateConnectionStatus(false);
+      sseRetryDelay = Math.min(sseRetryDelay * 2, SSE_MAX_RETRY);
+      setTimeout(connectStream, sseRetryDelay + Math.random() * 1000);
     };
   }
 
@@ -1179,6 +1245,25 @@ window.addEventListener('unhandledrejection', function(e) {
       eventSource.close();
       eventSource = null;
     }
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    updateConnectionStatus(false);
+  }
+
+  function startPollFallback() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => {
+      if (!CONFIG.workerURL) return;
+      fetch(CONFIG.workerURL + '/api/state?session=' + getOrCreateSessionId())
+        .then(r => r.ok ? r.json() : null)
+        .then(state => {
+          if (state && state.parsed && state.origin !== CLIENT_ID) {
+            lastResult = state.parsed;
+            lastPrompt = state.prompt || lastPrompt;
+            renderPreview(state.parsed);
+          }
+        })
+        .catch(() => {});
+    }, POLL_INTERVAL);
   }
 
   dom.sendBtn.addEventListener('click', () => sendPrompt(dom.promptInput.value));
@@ -1348,8 +1433,144 @@ window.addEventListener('unhandledrejection', function(e) {
     closeExportPod();
   }));
 
+  // === Preview Skit System ===
+  var previewSkit = (function() {
+    var $ = { el: null, scene: null, timer: null, idx: 0, active: false, skits: [] };
+    function init() {
+      var stage = document.getElementById('previewStage');
+      if (!stage) return;
+      $.el = document.createElement('div');
+      $.el.className = 'preview-skit';
+      $.el.id = 'previewSkit';
+      $.el.innerHTML = '<div class="skit-stage"><div class="skit-scene" id="skitScene"></div></div>';
+      stage.insertBefore($.el, stage.firstChild);
+      $.scene = document.getElementById('skitScene');
+      $.skits = [typewriter, morphLogo, witScroll, promptSparks];
+    }
+    function start() {
+      if (!$.el || !$.scene) return;
+      $.el.classList.add('active');
+      $.active = true; $.idx = 0; runNext();
+    }
+    function stop() {
+      if (!$.el) return;
+      $.el.classList.remove('active');
+      $.active = false;
+      if ($.timer) { clearTimeout($.timer); $.timer = null; }
+    }
+    function runNext() {
+      if (!$.active) return;
+      $.scene.innerHTML = '';
+      $.skits[$.idx % $.skits.length](function() {
+        if (!$.active) return;
+        $.idx++;
+        $.timer = setTimeout(runNext, 1500);
+      });
+    }
+    function typewriter(done) {
+      var messages = [
+        'Waiting for your vision\u2026',
+        'Canvas ready. Creator needed.',
+        'Your next UI is just a prompt away.',
+        'This empty space is full of potential.',
+        'Type something brilliant.',
+        'No pixels were harmed in the making\u2026',
+        'The blank page awaits your command.',
+        'Your magnum opus starts here.',
+        'Design is thinking made visual.',
+      ];
+      var msg = messages[Math.floor(Math.random() * messages.length)];
+      var line = document.createElement('div');
+      line.className = 'skit-line';
+      $.scene.appendChild(line);
+      var chars = msg.split('');
+      var delay = Math.min(25, Math.floor(3000 / chars.length));
+      chars.forEach(function(ch, i) {
+        var s = document.createElement('span');
+        s.className = 'skit-char';
+        s.textContent = ch === ' ' ? '\u00A0' : ch;
+        if (ch === '\u2026') s.style.color = 'var(--teal)';
+        s.style.animationDelay = (i * delay) + 'ms';
+        line.appendChild(s);
+      });
+      setTimeout(done, chars.length * delay + 800);
+    }
+    function morphLogo(done) {
+      var letters = 'DipDesigns'.split('').map(function(ch, i) {
+        return { ch: ch, hue: 170 + (i * 8) };
+      });
+      var line = document.createElement('div');
+      line.className = 'skit-line';
+      line.style.cssText = 'font-size:28px;font-weight:800;letter-spacing:2px;';
+      letters.forEach(function(l, i) {
+        var s = document.createElement('span');
+        s.className = 'skit-char skit-bounce';
+        s.textContent = l.ch;
+        s.style.color = 'hsl(' + l.hue + ',70%,60%)';
+        s.style.animationDelay = (i * 100) + 'ms';
+        s.style.animationDuration = (0.5 + Math.random() * 0.3) + 's';
+        line.appendChild(s);
+      });
+      $.scene.appendChild(line);
+      var sub = document.createElement('div');
+      sub.className = 'skit-line';
+      sub.textContent = 'studio';
+      sub.style.cssText = 'font-size:11px;opacity:0.4;margin-top:8px;letter-spacing:6px;text-transform:uppercase;';
+      $.scene.appendChild(sub);
+      setTimeout(done, 2800);
+    }
+    function witScroll(done) {
+      var wits = [
+        ['"Simplicity is the ultimate sophistication."', ''],
+        ['\u2014 Leonardo da Vinci', 'highlight'],
+      ];
+      wits.forEach(function(w, i) {
+        var line = document.createElement('div');
+        line.className = 'skit-line';
+        if (w[1]) line.classList.add(w[1]);
+        line.textContent = w[0];
+        line.style.opacity = '0';
+        line.style.animation = 'skitFadeIn 0.5s ease ' + (i * 600) + 'ms forwards';
+        $.scene.appendChild(line);
+      });
+      setTimeout(done, 4000);
+    }
+    function promptSparks(done) {
+      var sparks = [
+        'dark analytics dashboard', 'SaaS landing page',
+        'login & signup modal', 'settings panel',
+        'three-tier pricing', 'kanban project board',
+        'AI chat interface', 'developer portfolio',
+        'e-commerce product grid', 'music player',
+      ];
+      var spark = sparks[Math.floor(Math.random() * sparks.length)];
+      var hint = document.createElement('div');
+      hint.className = 'skit-line';
+      hint.textContent = 'try something like';
+      hint.style.cssText = 'font-size:10px;opacity:0.4;margin-bottom:8px;letter-spacing:2px;text-transform:uppercase;';
+      $.scene.appendChild(hint);
+      var line = document.createElement('div');
+      line.className = 'skit-line highlight';
+      line.style.cssText = 'font-size:20px;font-weight:700;';
+      $.scene.appendChild(line);
+      var chars = ('"' + spark + '"\u00A0\u2192').split('');
+      var delay = Math.min(30, Math.floor(2500 / chars.length));
+      chars.forEach(function(ch, i) {
+        var s = document.createElement('span');
+        s.className = 'skit-char';
+        s.textContent = ch === ' ' ? '\u00A0' : ch;
+        if (ch === '\u2192') s.style.cssText = 'color:var(--teal);font-weight:700;';
+        s.style.animationDelay = (i * delay) + 'ms';
+        line.appendChild(s);
+      });
+      setTimeout(done, chars.length * delay + 1000);
+    }
+    return { init: init, start: start, stop: stop };
+  })();
+
   dom.clearBtn.addEventListener('click', () => {
     dom.preview.src = 'about:blank';
+    if (previewSkit) previewSkit.start();
     lastResult = null;
     lastPrompt = '';
     repairCount = 0;
@@ -1442,6 +1663,10 @@ window.addEventListener('unhandledrejection', function(e) {
         removeTyping();
         if (err.name !== 'AbortError') {
           addMessage('Self-heal failed: ' + err.message, 'error');
+          if (lastWorkingVersion && lastWorkingVersion !== lastResult) {
+            renderPreview(lastWorkingVersion);
+            addMessage('Rolled back to last known working version.', 'assistant');
+          }
         }
       } finally {
         abortController = null;
@@ -1635,6 +1860,8 @@ window.addEventListener('unhandledrejection', function(e) {
     if (savedIp) setDesktopIP(savedIp);
     refreshFreeStatus();
     refreshAuthUI();
+    previewSkit.init();
+    previewSkit.start();
 
     // Chat collapse/expand (mobile only — starts collapsed)
     var chatPanel = document.querySelector('.panel-chat');

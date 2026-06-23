@@ -341,6 +341,110 @@ async function handleFreeGenerate(request, cors, env) {
   }
 }
 
+async function handleAiGenerate(request, cors, env) {
+  if (!env.AI) {
+    return new Response(JSON.stringify({ error: 'AI binding not available — ensure [ai] binding is configured in wrangler.toml' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+  try {
+    const body = await request.json();
+    const userPrompt = body.prompt;
+    if (!userPrompt) {
+      return new Response(JSON.stringify({ error: 'prompt is required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json', ...cors },
+      });
+    }
+
+    const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an elite vanilla web component engine. Output ONLY a valid JSON object string containing exactly three string keys: "html", "css", and "js". Do not use markdown backticks, fences, or extra prose. Use pure framework-free semantic tags and plain CSS layout coordinates.'
+        },
+        { role: 'user', content: userPrompt }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    return new Response(JSON.stringify(aiResponse), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...cors },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+}
+
+const AI_DEBUG_SYSTEM_PROMPT = `You are a debugger fixing a broken web UI. Given the original user intent, the current HTML/CSS/JS code, and a runtime error, fix the bug. Output ONLY a valid JSON object with exactly three string keys: "html", "css", and "js". Return the COMPLETE corrected code, not a diff. Use no markdown fences or extra prose.`;
+
+async function handleAiBackendAssistant(request, cors, env) {
+  if (!env.AI) {
+    return new Response(JSON.stringify({ error: 'AI binding not available' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+  try {
+    const body = await request.json();
+    const { prompt, stack } = body;
+    if (!prompt) {
+      return new Response(JSON.stringify({ error: 'prompt is required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json', ...cors },
+      });
+    }
+    const stackNote = stack && stack !== 'agnostic' ? `\n[Target stack: ${stack}]` : '';
+    const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+      messages: [
+        {
+          role: 'system',
+          content: BACKEND_ASSISTANT_SYSTEM_PROMPT
+        },
+        { role: 'user', content: prompt + stackNote }
+      ],
+    });
+    return new Response(JSON.stringify({ text: aiResponse.response || '' }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...cors },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+}
+
+async function handleAiDebug(request, cors, env) {
+  if (!env.AI) {
+    return new Response(JSON.stringify({ error: 'AI binding not available' }), {
+      status: 503, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+  try {
+    const body = await request.json();
+    const { originalPrompt, currentCode, errorInfo } = body;
+    if (!originalPrompt || !currentCode || !errorInfo) {
+      return new Response(JSON.stringify({ error: 'originalPrompt, currentCode, and errorInfo are required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json', ...cors },
+      });
+    }
+    const userMsg = `Original user intent:\n${originalPrompt}\n\nCurrent code:\n${currentCode}\n\nRuntime error:\n${errorInfo.error}\nLine: ${errorInfo.line} Column: ${errorInfo.col}\n\nFix the bug and return the complete corrected HTML, CSS, and JS.`;
+    const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+      messages: [
+        { role: 'system', content: AI_DEBUG_SYSTEM_PROMPT },
+        { role: 'user', content: userMsg }
+      ],
+      response_format: { type: "json_object" }
+    });
+    return new Response(JSON.stringify(aiResponse), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...cors },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500, headers: { 'Content-Type': 'application/json', ...cors },
+    });
+  }
+}
+
 async function handleBackendAssistant(request, cors, env) {
   try {
     const body = await request.json();
@@ -784,6 +888,15 @@ export default {
     switch (url.pathname) {
       case '/api/generate':
         if (request.method === 'POST') return proxyOpenRouter(request, cors, env);
+        break;
+      case '/api/ai/generate':
+        if (request.method === 'POST') return handleAiGenerate(request, cors, env);
+        break;
+      case '/api/ai/backend-assistant':
+        if (request.method === 'POST') return handleAiBackendAssistant(request, cors, env);
+        break;
+      case '/api/ai/debug':
+        if (request.method === 'POST') return handleAiDebug(request, cors, env);
         break;
       case '/api/free-generate':
         if (request.method === 'POST') return handleFreeGenerate(request, cors, env);

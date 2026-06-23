@@ -28,6 +28,9 @@ new_sqlite_classes = ["SessionHub"]
 tag = "v2"
 new_sqlite_classes = ["CreditLedger"]
 
+[ai]
+binding = "AI"
+
 [vars]
 CREDIT_COST = "1"
 FREE_DAILY_LIMIT = "3"

@@ -330,7 +330,16 @@
   .model-opt.active{background:var(--teal);color:var(--base-dark,#04201d);border-color:var(--teal);}
 
   .preview-canvas{flex:1;overflow:auto;display:grid;background:var(--bg-void);-webkit-overflow-scrolling:touch;}
-  .preview-stage{margin:auto;}
+  .preview-stage{margin:auto;position:relative;}
+  .preview-skit{position:absolute;inset:0;display:none;place-items:center;z-index:2;background:var(--bg-void,#070b12);border-radius:6px;overflow:hidden;padding:32px;}
+  .preview-skit.active{display:grid;}
+  .skit-stage{max-width:85%;text-align:center;width:100%;}
+  .skit-line{font-family:var(--font-mono);font-size:13px;line-height:1.8;color:var(--ink-on-dark-dim);}
+  .skit-line.highlight{color:var(--teal);}
+  .skit-char{display:inline-block;opacity:0;animation:skitFadeIn .04s ease forwards;}
+  @keyframes skitFadeIn{from{opacity:0;transform:scale(.85) translateY(5px)}to{opacity:1;transform:scale(1) translateY(0)}
+  .skit-bounce{animation:skitBounce .5s ease infinite alternate;}
+  @keyframes skitBounce{from{transform:translateY(0)}to{transform:translateY(-6px)}}
   iframe#preview{display:block;width:1280px;height:900px;border:none;background:#fff;border-radius:6px;transition:width .3s ease,height .3s ease;}
   .vibe-chips{display:flex;gap:4px;padding:5px 0 3px;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .vibe-chips::-webkit-scrollbar{display:none;}
@@ -487,7 +496,7 @@
 @media(prefers-color-scheme:dark){.ha-img-placeholder{background:#27272a;border-color:#3f3f46;color:#a1a1aa}}
 </style>
 </head>
-<body class="glz-body"><script>
+<body class="glz-body"><script>(function(){try{const h=localStorage.getItem("webhooks_email_api_key");const q=new URLSearchParams(window.location.search).get("auth");if(!h&&!q){window.location.href=window.location.origin+"/signin.html?redirect="+encodeURIComponent(window.location.href);}}catch(e){console.error(e);}})();</script><script>
 (function(){
   const hasAuth = localStorage.getItem('webhooks_email_api_key') || new URLSearchParams(location.search).get('auth');
   if (!hasAuth) {
@@ -568,6 +577,9 @@
           </div>
           <div class="preview-canvas" id="previewCanvas">
             <div class="preview-stage" id="previewStage">
+              <div class="preview-skit" id="previewSkit" aria-hidden="true">
+                <div class="skit-stage"><div class="skit-scene" id="skitScene"></div></div>
+              </div>
               <iframe id="preview" sandbox="allow-scripts allow-same-origin" title="Live Preview"></iframe>
             </div>
           </div>

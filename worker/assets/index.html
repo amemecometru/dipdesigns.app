@@ -330,7 +330,16 @@
   .model-opt.active{background:var(--teal);color:var(--base-dark,#04201d);border-color:var(--teal);}
 
   .preview-canvas{flex:1;overflow:auto;display:grid;background:var(--bg-void);-webkit-overflow-scrolling:touch;}
-  .preview-stage{margin:auto;}
+  .preview-stage{margin:auto;position:relative;}
+  .preview-skit{position:absolute;inset:0;display:none;place-items:center;z-index:2;background:var(--bg-void,#070b12);border-radius:6px;overflow:hidden;padding:32px;}
+  .preview-skit.active{display:grid;}
+  .skit-stage{max-width:85%;text-align:center;width:100%;}
+  .skit-line{font-family:var(--font-mono);font-size:13px;line-height:1.8;color:var(--ink-on-dark-dim);}
+  .skit-line.highlight{color:var(--teal);}
+  .skit-char{display:inline-block;opacity:0;animation:skitFadeIn .04s ease forwards;}
+  @keyframes skitFadeIn{from{opacity:0;transform:scale(.85) translateY(5px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  .skit-bounce{animation:skitBounce .5s ease infinite alternate;}
+  @keyframes skitBounce{from{transform:translateY(0)}to{transform:translateY(-6px)}}
   iframe#preview{display:block;width:1280px;height:900px;border:none;background:#fff;border-radius:6px;transition:width .3s ease,height .3s ease;}
 
   /* vibe chips + mic (visible on all screens) */
@@ -524,7 +533,7 @@
 @media(prefers-color-scheme:dark){.ha-img-placeholder{background:#27272a;border-color:#3f3f46;color:#a1a1aa}}
 </style>
 </head>
-<body class="glz-body">
+<body class="glz-body"><script>(function(){try{const h=localStorage.getItem("webhooks_email_api_key");const q=new URLSearchParams(window.location.search).get("auth");if(!h&&!q){window.location.href=window.location.origin+"/signin.html?redirect="+encodeURIComponent(window.location.href);}}catch(e){console.error(e);}})();</script>
   <div class="bg"></div>
   <div class="app-root">
 
@@ -603,6 +612,9 @@
           </div>
           <div class="preview-canvas" id="previewCanvas">
             <div class="preview-stage" id="previewStage">
+              <div class="preview-skit" id="previewSkit" aria-hidden="true">
+                <div class="skit-stage"><div class="skit-scene" id="skitScene"></div></div>
+              </div>
               <iframe id="preview" sandbox="allow-scripts allow-same-origin" title="Live Preview"></iframe>
             </div>
           </div>
@@ -911,8 +923,18 @@ document.addEventListener('keydown', function(e) {
     if(!e.target.closest('.ha-pill'))document.querySelectorAll('.ha-pill-menu.open').forEach(function(m){m.classList.remove('open');});
   });
 
+  function saveMessages(){
+    try{ localStorage.setItem('haChat_messages', JSON.stringify(messages)); }catch(e){}
+  }
+  function loadMessages(){
+    try{
+      var d=localStorage.getItem('haChat_messages');
+      if(d){ messages=JSON.parse(d); messages.forEach(function(m){ addMsg(m.role,m.content,true); }); }
+    }catch(e){}
+  }
+
   /* ---- chat ---- */
-  function addMsg(role,text){
+  function addMsg(role,text,silent){
     var d=document.createElement('div');
     d.className='ha-msg '+role;
     var l=document.createElement('span');
@@ -922,7 +944,11 @@ document.addEventListener('keydown', function(e) {
     d.appendChild(document.createTextNode(text));
     haChat.appendChild(d);
     haChat.scrollTop=haChat.scrollHeight;
-    messages.push({role:role,content:text});
+    if(!silent){
+      messages.push({role:role,content:text});
+      saveMessages();
+    }
+    if(handoffGenBtn&&messages.length>2)handoffGenBtn.style.display='';
   }
   function showTyping(){
     var d=document.createElement('div');
@@ -944,12 +970,20 @@ document.addEventListener('keydown', function(e) {
       var result=api?api.getLastResult():null;
       var uiHtml=result&&result.html?result.html.slice(0,500):'(none)';
       var fullPrompt='Current UI HTML (preview):\n'+uiHtml+'\n\nConversation:\n'+convo;
-      var url=_baseURL()+'/api/backend-assistant';
-      var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:fullPrompt,stack:selectedStack})});
+      var reply=null;
+      var cfUrl=_baseURL()+'/api/ai/backend-assistant';
+      try{
+        var cfRes=await fetch(cfUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:fullPrompt,stack:selectedStack})});
+        if(cfRes.ok){ var cfData=await cfRes.json(); reply=cfData&&cfData.text; }
+      }catch(e){}
+      if(!reply){
+        var orUrl=_baseURL()+'/api/backend-assistant';
+        var orRes=await fetch(orUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:fullPrompt,stack:selectedStack})});
+        if(!orRes.ok){var ed;try{ed=await orRes.json();}catch(e){}throw new Error((ed&&ed.error)||'Request failed ('+orRes.status+')');}
+        var orData=await orRes.json();
+        reply=orData&&orData.text;
+      }
       hideTyping();
-      if(!res.ok){var ed;try{ed=await res.json();}catch(e){}throw new Error((ed&&ed.error)||'Request failed ('+res.status+')');}
-      var data=await res.json();
-      var reply=data&&data.text;
       if(!reply||typeof reply!=='string'||reply.length<5)reply='Received response.';
       if(reply.length>3000)reply=reply.slice(0,3000)+'\n\n_[truncated]_';
       addMsg('assistant',reply);
@@ -959,6 +993,42 @@ document.addEventListener('keydown', function(e) {
 
   if(haSendBtn)haSendBtn.addEventListener('click',sendChat);
   if(haInput)haInput.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}});
+
+  /* ---- extract wire-up map from generated HTML ---- */
+  function extractWireMap(html){
+    if(!html||typeof html!=='string')return [];
+    var map=[];
+    var idEls=html.match(/\sid=["']([^"']+)["']/g);
+    if(idEls){
+      var ids=[];
+      idEls.forEach(function(m){ var id=m.replace(/^.*?["']/,'').replace(/["']$/,''); if(ids.indexOf(id)<0)ids.push(id); });
+      ids.forEach(function(id){ map.push({element:'#'+id,notes:'DOM element with id "'+id+'"'}); });
+    }
+    var forms=html.match(/<form[^>]*>/gi);
+    if(forms){
+      forms.forEach(function(f){
+        var action=(f.match(/action=["']([^"']*)["']/)||[])[1]||'(no action)';
+        var method=(f.match(/method=["']([^"']*)["']/)||[])[1]||'GET';
+        map.push({element:'<form>',notes:'method: '+method.toUpperCase()+', action: '+action});
+      });
+    }
+    var buttons=html.match(/<(button|input)[^>]*?(?:type=["']submit["'])?[^>]*>/gi);
+    if(buttons){
+      (buttons||[]).forEach(function(b){
+        var id=(b.match(/id=["']([^"']*)["']/)||[])[1];
+        var type=(b.match(/type=["']([^"']*)["']/)||[])[1]||'button';
+        var onclick=(b.match(/onclick=["']([^"']*)["']/)||[])[1];
+        var txt=(b.match(/>(.*?)<\//)||[])[1]||'';
+        if(type==='submit'||onclick||txt){
+          map.push({
+            element: id?'#'+id:'<'+b.slice(0,20)+'...>',
+            notes: (txt||type)+(onclick?' \u2192 onclick: '+onclick.slice(0,60):'')
+          });
+        }
+      });
+    }
+    return map;
+  }
 
   /* ---- Generate Handoff.md ---- */
   function generateHandoff(){
@@ -970,6 +1040,7 @@ document.addEventListener('keydown', function(e) {
     var h=(result.html||'').length,c=(result.css||'').length,j=(result.js||'').length;
     var now=new Date().toISOString().slice(0,19).replace('T',' ');
     var chatLog=messages.map(function(m){return '### '+(m.role==='user'?'You':'Assistant')+'\n'+m.content;}).join('\n\n');
+    var wireMap=extractWireMap(result.html);
     var md='# Implementation Handoff\n\n';
     md+='> Auto-generated by DipDesigns Studio \u00B7 '+now+'\n';
     md+='> Target stack: **'+stackLabel+'**\n\n';
@@ -980,6 +1051,12 @@ document.addEventListener('keydown', function(e) {
     md+='## Architecture\n\n- **Rendering**: Client-side blob URL \u2192 sandboxed iframe\n';
     md+='- **Framework**: Glazier Kit design system (tokens.css + glazier.css)\n';
     md+='- **Export**: Self-contained HTML with inline CSS/JS\n\n';
+    if(wireMap.length>0){
+      md+='## Wire-Up Map\n\n';
+      md+='| Element | Notes |\n|---------|-------|\n';
+      wireMap.forEach(function(w){ md+='| `'+w.element+'` | '+w.notes+' |\n'; });
+      md+='\n';
+    }
     md+='## Backend Assistant Chat Log\n\n'+chatLog+'\n\n---\n\n';
     md+='## Generated HTML\n\n```html\n'+(result.html||'')+'\n```\n\n';
     md+='## Generated CSS\n\n```css\n'+(result.css||'')+'\n```\n\n';
@@ -1022,6 +1099,8 @@ document.addEventListener('keydown', function(e) {
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(u);},3000);
   }
+
+  loadMessages();
 
   /* Export for external use */
   window.openHandoffPanel = openHandoffPanel;
