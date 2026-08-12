@@ -3,19 +3,11 @@ DipDesigns /inspo assets — drop into worker/public/inspo/ (served at /inspo/* 
 hero-teal-supernova.webp          177.7 KB
 geode-amethyst.webp               139.5 KB
 geode-mineral-cosmos.webp         128.4 KB
-type-brutalist-editorial.webp      66.7 KB
 type-haute-serif.webp              23.4 KB
-type-retro-groove.webp             73.4 KB
 type-liquid-chrome.webp            39.2 KB
-color-citrus-pop.webp              28.6 KB
-color-emerald-atelier.webp         28.2 KB
-color-midnight-synth.webp          22.8 KB
-color-terracotta-earth.webp        56.1 KB
-illus-ghibli.webp                  69.8 KB
-illus-pen-ink.webp                154.0 KB
+
 saas-northbeam.webp                49.2 KB
 resume-modern.webp                129.5 KB
-social-kit.webp                    58.0 KB
 palette-amethyst-dusk.webp         61.5 KB
 palette-mineral-cosmos.webp        50.3 KB
 wide-placeholder.svg                0.7 KB
